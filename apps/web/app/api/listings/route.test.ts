@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "./route";
+import type { ListingsResponse } from "../../../../../packages/shared/src/types";
 
 describe("GET /api/listings", () => {
   it("returns a paginated list of public HDB rental listings", async () => {
@@ -42,6 +43,40 @@ describe("GET /api/listings", () => {
       expect(typeof item.lease_months).toBe("number");
       expect(typeof item.available_from).toBe("string");
     }
+  });
+
+  it("paginates across two pages without gaps or overlap", async () => {
+    const firstPageResponse = await GET(
+      new NextRequest("http://localhost:3100/api/listings?limit=3")
+    );
+    expect(firstPageResponse.status).toBe(200);
+    const firstPage = (await firstPageResponse.json()) as ListingsResponse;
+    expect(firstPage.items).toHaveLength(3);
+    expect(typeof firstPage.cursor).toBe("string");
+    if (!firstPage.cursor) {
+      throw new Error("Expected a cursor for the second page");
+    }
+
+    const secondPageResponse = await GET(
+      new NextRequest(
+        `http://localhost:3100/api/listings?limit=3&cursor=${encodeURIComponent(firstPage.cursor)}`
+      )
+    );
+    expect(secondPageResponse.status).toBe(200);
+    const secondPage = (await secondPageResponse.json()) as ListingsResponse;
+    expect(secondPage.items).toHaveLength(3);
+
+    const combinedIds = [...firstPage.items, ...secondPage.items].map(
+      (item) => item.id
+    );
+    expect(new Set(combinedIds).size).toBe(combinedIds.length);
+
+    const canonicalResponse = await GET(
+      new NextRequest("http://localhost:3100/api/listings?limit=6")
+    );
+    expect(canonicalResponse.status).toBe(200);
+    const canonicalPage = (await canonicalResponse.json()) as ListingsResponse;
+    expect(canonicalPage.items.map((item) => item.id)).toEqual(combinedIds);
   });
 
   it("rejects invalid query parameters with a 400 error", async () => {

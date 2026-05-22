@@ -187,7 +187,7 @@ export async function getPublicListings(options: {
     3
   );
 
-  const nextRow = rows[options.limit];
+  const nextRow = rows.length > options.limit ? visibleRows.at(-1) : undefined;
   const nextCursor =
     nextRow?.publishedAt === null || nextRow?.publishedAt === undefined
       ? null
