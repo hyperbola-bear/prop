@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { listingDetailSchema } from "../../../../../../packages/shared/src/schemas";
+import { publicJson, publicOptions } from "../../_cors";
 import { getPublicListingDetail } from "../../../../lib/listings";
 
 const listingIdSchema = z.uuid();
@@ -14,7 +15,7 @@ export async function GET(_request: NextRequest, context: ListingRouteContext) {
   const parsedId = listingIdSchema.safeParse(params.id);
 
   if (!parsedId.success) {
-    return NextResponse.json(
+    return publicJson(
       {
         error: {
           code: "not_found",
@@ -28,7 +29,7 @@ export async function GET(_request: NextRequest, context: ListingRouteContext) {
   const listing = await getPublicListingDetail(parsedId.data);
 
   if (!listing) {
-    return NextResponse.json(
+    return publicJson(
       {
         error: {
           code: "not_found",
@@ -39,5 +40,9 @@ export async function GET(_request: NextRequest, context: ListingRouteContext) {
     );
   }
 
-  return NextResponse.json(listingDetailSchema.parse(listing));
+  return publicJson(listingDetailSchema.parse(listing));
+}
+
+export function OPTIONS() {
+  return publicOptions();
 }

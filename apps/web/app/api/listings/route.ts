@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import {
   listingsQuerySchema,
   listingsResponseSchema
 } from "../../../../../packages/shared/src/schemas";
+import { publicJson, publicOptions } from "../_cors";
 import { getPublicListings, InvalidCursorError } from "../../../lib/listings";
 
 function zodFieldErrors(error: ZodError): Record<string, string> {
@@ -18,10 +19,10 @@ export async function GET(request: NextRequest) {
       Object.fromEntries(request.nextUrl.searchParams.entries())
     );
     const response = listingsResponseSchema.parse(await getPublicListings(query));
-    return NextResponse.json(response);
+    return publicJson(response);
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json(
+      return publicJson(
         {
           error: {
             code: "invalid_request",
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (error instanceof InvalidCursorError) {
-      return NextResponse.json(
+      return publicJson(
         {
           error: {
             code: "invalid_cursor",
@@ -47,4 +48,8 @@ export async function GET(request: NextRequest) {
 
     throw error;
   }
+}
+
+export function OPTIONS() {
+  return publicOptions();
 }

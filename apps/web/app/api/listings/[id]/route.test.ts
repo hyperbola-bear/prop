@@ -40,6 +40,9 @@ describe("GET /api/listings/:id", () => {
       })
     );
     expect(body.photos.length).toBeGreaterThanOrEqual(3);
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:3101"
+    );
   });
 
   it("returns 404 for a missing listing", async () => {

@@ -54,4 +54,14 @@ describe("GET /api/listings", () => {
       error: { code: "invalid_request" }
     });
   });
+
+  it("allows the Expo Web origin to read public listings", async () => {
+    const response = await GET(
+      new NextRequest("http://localhost:3100/api/listings?limit=1")
+    );
+
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:3101"
+    );
+  });
 });
