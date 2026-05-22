@@ -549,6 +549,7 @@ async function upsertUsers(sql: postgres.Sql): Promise<Map<string, string>> {
         password_hash = excluded.password_hash,
         phone_verified_at = coalesce(users.phone_verified_at, excluded.phone_verified_at),
         pdpa_consent_at = coalesce(users.pdpa_consent_at, excluded.pdpa_consent_at),
+        deleted_at = null,
         updated_at = now()
       returning id
     `;
@@ -560,7 +561,17 @@ async function upsertUsers(sql: postgres.Sql): Promise<Map<string, string>> {
     await sql`
       insert into user_roles (id, user_id, role)
       values (${stableUuid(`role:${user.email}:${user.role}`)}, ${row.id}, ${user.role})
-      on conflict (user_id, role) do update set updated_at = now()
+      on conflict (user_id, role) do update set
+        deleted_at = null,
+        updated_at = now()
+    `;
+
+    await sql`
+      update user_roles
+      set deleted_at = now(), updated_at = now()
+      where user_id = ${row.id}
+        and role <> ${user.role}
+        and deleted_at is null
     `;
 
     if (user.role === "buyer") {
