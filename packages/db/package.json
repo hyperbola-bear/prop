@@ -16,9 +16,9 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
-    "db:migrate": "node ./scripts/noop.mjs migrate",
+    "db:migrate": "drizzle-kit migrate",
     "db:seed": "node ./scripts/noop.mjs seed",
-    "db:reset": "node ./scripts/noop.mjs reset"
+    "db:reset": "node ./scripts/reset.mjs"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",

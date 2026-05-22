@@ -1,1 +1,1 @@
-export const databasePackageReady = true;
+export * from "../schema/index";
