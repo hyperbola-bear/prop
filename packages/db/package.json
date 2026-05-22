@@ -1,0 +1,30 @@
+{
+  "name": "@proppy/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:migrate": "node ./scripts/noop.mjs migrate",
+    "db:seed": "node ./scripts/noop.mjs seed",
+    "db:reset": "node ./scripts/noop.mjs reset"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2",
+    "postgres": "^3.4.7"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.8"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "proppy",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,mobile \"npm run dev -w apps/web -- -p 3100\" \"npm run web -w apps/mobile -- --port 3101\"",
+    "build": "NODE_OPTIONS=--no-deprecation npm run build --workspaces --if-present",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest --passWithNoTests",
+    "db:migrate": "npm run db:migrate -w packages/db",
+    "db:seed": "npm run db:seed -w packages/db",
+    "db:reset": "npm run db:reset -w packages/db",
+    "worker:start": "node -e \"console.log('worker workspace not initialized yet')\""
+  },
+  "devDependencies": {
+    "@types/node": "25.0.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.2",
+    "prettier": "^3.7.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.50.0",
+    "vitest": "^4.0.14"
+  }
+}
