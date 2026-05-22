@@ -17,6 +17,7 @@
     "@proppy/db": "^0.0.0",
     "@proppy/shared": "^0.0.0",
     "@tailwindcss/postcss": "4.3.0",
+    "date-fns": "^4.2.1",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.6",
     "nodemailer": "^7.0.13",

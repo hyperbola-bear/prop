@@ -3,6 +3,9 @@
 @theme {
   --color-proppy-primary: #0f766e;
   --color-proppy-ink: #111827;
+  --color-brand: #0f766e;
+  --color-brand-fg: #ffffff;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
 html {
@@ -12,5 +15,10 @@ html {
 
 body {
   margin: 0;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
 }
