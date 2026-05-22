@@ -17,14 +17,17 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "node ./scripts/noop.mjs seed",
+    "db:seed": "tsx ./seed/index.ts",
     "db:reset": "node ./scripts/reset.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1052.0",
+    "argon2": "^0.44.0",
     "drizzle-orm": "0.45.2",
     "postgres": "^3.4.7"
   },
   "devDependencies": {
-    "drizzle-kit": "0.31.8"
+    "drizzle-kit": "0.31.8",
+    "tsx": "^4.22.3"
   }
 }
