@@ -4,11 +4,17 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "build:shared": "npm run build -w @proppy/shared",
+    "prestart": "npm run build:shared",
     "start": "expo start",
+    "preweb": "npm run build:shared",
     "web": "expo start --web",
+    "prebuild": "npm run build:shared",
     "build": "expo export -p web --clear",
     "lint": "eslint . --max-warnings=0",
+    "pretypecheck": "npm run build:shared",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "npm run build:shared",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
