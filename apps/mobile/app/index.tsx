@@ -2,12 +2,12 @@ import type { ListingSummary } from "@proppy/shared/types";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View
 } from "react-native";
+import { AuthNav } from "../components/AuthNav";
 import { ListingCard } from "../components/ListingCard";
 import { mobileApiClient } from "../lib/api";
 
@@ -56,14 +56,7 @@ export default function HomeScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.nav}>
         <Text style={styles.brand}>Proppy</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => undefined}
-          style={styles.signInButton}
-          testID="nav-signin"
-        >
-          <Text style={styles.signInText}>Sign in</Text>
-        </Pressable>
+        <AuthNav />
       </View>
 
       <View style={styles.hero}>
@@ -109,18 +102,6 @@ const styles = StyleSheet.create({
     color: "#0f766e",
     fontSize: 22,
     fontWeight: "800"
-  },
-  signInButton: {
-    borderColor: "#0f766e",
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 18,
-    paddingVertical: 10
-  },
-  signInText: {
-    color: "#0f766e",
-    fontSize: 14,
-    fontWeight: "700"
   },
   hero: {
     maxWidth: 760
