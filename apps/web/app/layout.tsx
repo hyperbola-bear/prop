@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { AuthNav } from "../components/AuthNav";
+import { currentSessionUser } from "../lib/server-auth";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,11 +8,13 @@ export const metadata: Metadata = {
   description: "Singapore-first property marketplace"
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await currentSessionUser();
+
   return (
     <html lang="en-SG">
       <body>
@@ -26,13 +30,7 @@ export default function RootLayout({
             >
               Proppy
             </a>
-            <a
-              data-testid="nav-signin"
-              href="/login"
-              className="rounded-full border border-proppy-primary px-4 py-2 text-sm font-semibold text-proppy-primary transition hover:bg-proppy-primary hover:text-white"
-            >
-              Sign in
-            </a>
+            <AuthNav user={user ? { email: user.email } : null} />
           </nav>
         </header>
         {children}

@@ -11,7 +11,9 @@ export async function POST(request: NextRequest) {
       password: body.password,
       phone: body.phone,
       role: body.role,
-      ...(body.cea_no ? { cea_no: body.cea_no } : {})
+      ...(body.cea_no ? { cea_no: body.cea_no } : {}),
+      ...(body.name ? { name: body.name } : {}),
+      ...(body.myinfoPayload ? { myinfoPayload: body.myinfoPayload } : {})
     });
 
     return jsonResponse({

@@ -101,6 +101,8 @@ export async function createUser(input: {
   phone: string;
   role: z.infer<typeof authRoleSchema>;
   cea_no?: string;
+  name?: string;
+  myinfoPayload?: unknown;
 }): Promise<{ userId: string }> {
   const role = normalizeRole(input.role);
   const now = new Date();
@@ -112,10 +114,11 @@ export async function createUser(input: {
       .insert(users)
       .values({
         email,
-        name: email.split("@")[0] || email,
+        name: input.name?.trim() || email.split("@")[0] || email,
         phoneE164: input.phone,
         passwordHash,
         pdpaConsentAt: now,
+        myinfoPayload: input.myinfoPayload,
         phoneVerifiedAt: null,
         updatedAt: now
       })

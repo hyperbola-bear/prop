@@ -22,7 +22,19 @@ export const signupSchema = z.object({
   pdpaConsent: z.literal(true, {
     message: "PDPA consent is required"
   }),
-  cea_no: z.string().trim().min(1).optional()
+  cea_no: z.string().trim().min(1).optional(),
+  name: z.string().trim().min(1).max(160).optional(),
+  myinfoPayload: z
+    .object({
+      name: z.string(),
+      uinfin: z.string(),
+      nationality: z.string().optional(),
+      dob: z.string().optional(),
+      sex: z.string().optional(),
+      mobileno: z.string().optional()
+    })
+    .passthrough()
+    .optional()
 });
 
 export const otpRequestSchema = z.object({
