@@ -11,6 +11,7 @@ import { jsonError, jsonResponse, mapError, requireAuth } from "../../../../../l
 import {
   getStorageObject,
   headStorageObject,
+  presignPhotoGetUrl,
   putStorageObject
 } from "../../../../../lib/storage";
 
@@ -72,7 +73,7 @@ function inferContentType(key: string): string {
 }
 
 async function averageHash(buffer: Buffer): Promise<string> {
-  const pixels = await sharp(buffer).resize(8, 8, { fit: "fill" }).greyscale().raw().toBuffer();
+  const pixels = await sharp(buffer, { failOn: "none" }).resize(8, 8, { fit: "fill" }).greyscale().raw().toBuffer();
   const average = pixels.reduce((sum, value) => sum + value, 0) / pixels.length;
   let bits = 0n;
   for (const pixel of pixels) {
@@ -103,9 +104,9 @@ export async function POST(request: NextRequest, context: ListingRouteContext) {
 
     const object = await getStorageObject(body.key);
     const imageBuffer = await streamBodyToBuffer(object.Body);
-    const metadata = await sharp(imageBuffer).metadata();
+    const metadata = await sharp(imageBuffer, { failOn: "none" }).metadata();
     const thumbnailKey = `${body.key}.thumb.webp`;
-    const thumbnail = await sharp(imageBuffer).resize(800).webp().toBuffer();
+    const thumbnail = await sharp(imageBuffer, { failOn: "none" }).resize(800).webp().toBuffer();
     await putStorageObject(thumbnailKey, thumbnail, "image/webp");
     const phash = await averageHash(imageBuffer);
 
@@ -161,7 +162,14 @@ export async function GET(request: NextRequest, context: ListingRouteContext) {
       .from(listingPhotos)
       .where(and(eq(listingPhotos.listingId, listingId), isNull(listingPhotos.deletedAt)))
       .orderBy(asc(listingPhotos.sortOrder));
-    return jsonResponse({ items: photos });
+    return jsonResponse({
+      items: await Promise.all(
+        photos.map(async (photo) => ({
+          ...photo,
+          url: await presignPhotoGetUrl(photo.thumbnailObjectPath ?? photo.objectPath)
+        }))
+      )
+    });
   } catch (error) {
     return mapError(error);
   }

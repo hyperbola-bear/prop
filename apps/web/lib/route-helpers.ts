@@ -4,7 +4,7 @@ import { getCurrentUser } from "./auth-context";
 
 export const securityHeaders = {
   "Content-Security-Policy":
-    "default-src 'self'; img-src 'self' http://localhost:9000 data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:9000;",
+    "default-src 'self'; img-src 'self' http://localhost:9000 data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:9000;",
   "X-Content-Type-Options": "nosniff"
 };
 
