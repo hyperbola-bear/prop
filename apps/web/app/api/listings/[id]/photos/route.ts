@@ -7,7 +7,7 @@ import { listingPhotos } from "../../../../../../../packages/db/schema";
 import { addListingPhotoSchema } from "../../../../../../../packages/shared/src/schemas";
 import { db } from "../../../../../lib/db";
 import { requireListingMutationAccess } from "../../../../../lib/listing-mutations";
-import { jsonError, jsonResponse, mapError, requireAuth } from "../../../../../lib/route-helpers";
+import { jsonError, jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../../lib/route-helpers";
 import {
   getStorageObject,
   headStorageObject,
@@ -173,4 +173,8 @@ export async function GET(request: NextRequest, context: ListingRouteContext) {
   } catch (error) {
     return mapError(error);
   }
+}
+
+export function OPTIONS() {
+  return optionsResponse();
 }

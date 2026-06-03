@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireListingMutationAccess, setListingStatus } from "../../../../../lib/listing-mutations";
-import { jsonResponse, mapError, requireAuth } from "../../../../../lib/route-helpers";
+import { jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../../lib/route-helpers";
 
 const listingIdSchema = z.uuid();
 
@@ -20,4 +20,8 @@ export async function POST(request: NextRequest, context: ListingRouteContext) {
   } catch (error) {
     return mapError(error);
   }
+}
+
+export function OPTIONS() {
+  return optionsResponse();
 }

@@ -5,7 +5,7 @@ import { listingPhotos } from "../../../../../../../../packages/db/schema";
 import { reorderListingPhotosSchema } from "../../../../../../../../packages/shared/src/schemas";
 import { db } from "../../../../../../lib/db";
 import { requireListingMutationAccess } from "../../../../../../lib/listing-mutations";
-import { ForbiddenError, jsonResponse, mapError, requireAuth } from "../../../../../../lib/route-helpers";
+import { ForbiddenError, jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../../../lib/route-helpers";
 
 const listingIdSchema = z.uuid();
 
@@ -56,4 +56,8 @@ export async function PATCH(request: NextRequest, context: ListingRouteContext) 
   } catch (error) {
     return mapError(error);
   }
+}
+
+export function OPTIONS() {
+  return optionsResponse();
 }

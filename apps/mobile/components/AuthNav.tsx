@@ -28,6 +28,13 @@ export function AuthNav() {
     <View style={styles.authenticatedNav}>
       <Pressable
         accessibilityRole="button"
+        onPress={() => router.push("/dashboard/listings" as Href)}
+        testID="nav-listings"
+      >
+        <Text style={styles.profileText}>Listings</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
         onPress={() => router.push("/profile" as Href)}
         testID="nav-profile"
       >

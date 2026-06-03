@@ -3,7 +3,7 @@ import { uploadSessions } from "../../../../../../packages/db/schema";
 import { presignUploadSchema } from "../../../../../../packages/shared/src/schemas";
 import { db } from "../../../../lib/db";
 import { requireListingMutationAccess } from "../../../../lib/listing-mutations";
-import { jsonResponse, mapError, requireAuth } from "../../../../lib/route-helpers";
+import { jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../lib/route-helpers";
 import { presignObjectPutUrl } from "../../../../lib/storage";
 
 const extensionByContentType: Record<string, string> = {
@@ -48,4 +48,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return mapError(error);
   }
+}
+
+export function OPTIONS() {
+  return optionsResponse();
 }

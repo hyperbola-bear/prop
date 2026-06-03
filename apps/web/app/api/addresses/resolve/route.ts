@@ -3,7 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { addresses, blocks } from "../../../../../../packages/db/schema";
 import { db } from "../../../../lib/db";
-import { jsonResponse, mapError, requireAuth } from "../../../../lib/route-helpers";
+import { jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../lib/route-helpers";
 
 const resolveAddressSchema = z.object({
   block: z.string().trim().min(1),
@@ -117,4 +117,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return mapError(error);
   }
+}
+
+export function OPTIONS() {
+  return optionsResponse();
 }

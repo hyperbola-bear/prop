@@ -10,11 +10,11 @@ import {
   listingDetailSchema,
   patchListingSchema
 } from "../../../../../../packages/shared/src/schemas";
-import { publicJson, publicOptions } from "../../_cors";
+import { publicJson } from "../../_cors";
 import { getPublicListingDetail } from "../../../../lib/listings";
 import { db } from "../../../../lib/db";
 import { requireListingMutationAccess } from "../../../../lib/listing-mutations";
-import { jsonResponse, mapError, requireAuth } from "../../../../lib/route-helpers";
+import { jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../lib/route-helpers";
 
 const listingIdSchema = z.uuid();
 
@@ -136,5 +136,5 @@ export async function PATCH(request: NextRequest, context: ListingRouteContext) 
 }
 
 export function OPTIONS() {
-  return publicOptions();
+  return optionsResponse();
 }

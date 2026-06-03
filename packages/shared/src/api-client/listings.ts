@@ -1,7 +1,14 @@
 import { z } from "zod";
 import {
+  addListingPhotoSchema,
+  createListingSchema,
   listingDetailSchema,
-  listingsResponseSchema
+  listingsResponseSchema,
+  ownedListingDetailSchema,
+  ownedListingsResponseSchema,
+  patchListingSchema,
+  presignUploadSchema,
+  reorderListingPhotosSchema
 } from "../schemas/listings";
 import type {
   AddRoleInput,
@@ -9,7 +16,11 @@ import type {
   OtpVerifyInput,
   SignupInput
 } from "../schemas/auth";
-import type { ListingDetail, ListingsResponse } from "../types/listings";
+import type {
+  ListingDetail,
+  ListingsResponse,
+  OwnedListingDetail
+} from "../types/listings";
 
 type Fetcher = typeof fetch;
 
@@ -61,6 +72,68 @@ const meResponseSchema = z.object({
 });
 const rolesResponseSchema = z.object({ roles: z.array(z.string()) });
 const okResponseSchema = z.object({ ok: z.boolean() });
+const createListingResponseSchema = z.object({
+  id: z.uuid(),
+  status: z.string().min(1)
+});
+const updateListingResponseSchema = z.object({
+  id: z.uuid(),
+  status: z.string().min(1)
+});
+const statusResponseSchema = z.object({
+  status: z.string().min(1)
+});
+const refreshResponseSchema = z.object({
+  refreshed: z.boolean()
+});
+const presignUploadResponseSchema = z.object({
+  url: z.string().url(),
+  fields: z.record(z.string(), z.unknown()).optional(),
+  key: z.string().min(1),
+  maxSizeBytes: z.number().int().positive().optional(),
+  method: z.string().optional(),
+  headers: z.record(z.string(), z.string()).optional()
+});
+const addPhotoResponseSchema = z.object({
+  id: z.uuid(),
+  sortOrder: z.number().int()
+});
+const floorPlanResponseSchema = z.object({
+  id: z.uuid()
+});
+const resolveAddressInputSchema = z.object({
+  block: z.string().min(1),
+  street: z.string().min(1),
+  postal: z.string().optional(),
+  building: z.string().optional(),
+  address: z.string().optional(),
+  lat: z.string().optional(),
+  lng: z.string().optional()
+});
+const resolveAddressResponseSchema = z.object({
+  addressId: z.uuid(),
+  blockId: z.uuid(),
+  town: z.string().min(1)
+});
+const onemapSuggestionSchema = z.object({
+  SEARCHVAL: z.string(),
+  BLK_NO: z.string(),
+  ROAD_NAME: z.string(),
+  BUILDING: z.string(),
+  ADDRESS: z.string(),
+  POSTAL: z.string(),
+  LATITUDE: z.string(),
+  LONGITUDE: z.string()
+});
+const onemapSuggestionsSchema = z.array(onemapSuggestionSchema);
+
+export type CreateListingInput = z.input<typeof createListingSchema>;
+export type PatchListingInput = z.input<typeof patchListingSchema>;
+export type PresignUploadInput = z.input<typeof presignUploadSchema>;
+export type AddListingPhotoInput = z.input<typeof addListingPhotoSchema>;
+export type ReorderListingPhotosInput = z.infer<typeof reorderListingPhotosSchema>;
+export type ResolveAddressInput = z.infer<typeof resolveAddressInputSchema>;
+export type OnemapSuggestion = z.infer<typeof onemapSuggestionSchema>;
 
 export type AuthenticatedUser = z.infer<typeof meResponseSchema>;
 
@@ -111,6 +184,14 @@ async function request<T>(
 function jsonPost(body: unknown): RequestInit {
   return {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  };
+}
+
+function jsonPatch(body: unknown): RequestInit {
+  return {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   };
@@ -198,6 +279,150 @@ export function createApiClient(options: ApiClientOptions = {}) {
           fetcher,
           apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}`),
           listingDetailSchema,
+          {},
+          getToken
+        );
+      },
+      create(input: CreateListingInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/listings"),
+          createListingResponseSchema,
+          jsonPost(input),
+          getToken
+        );
+      },
+      update(id: string, input: PatchListingInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}`),
+          updateListingResponseSchema,
+          jsonPatch(input),
+          getToken
+        );
+      },
+      publish(id: string) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/publish`),
+          statusResponseSchema,
+          { method: "POST" },
+          getToken
+        );
+      },
+      addPhoto(id: string, input: AddListingPhotoInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/photos`),
+          addPhotoResponseSchema,
+          jsonPost(input),
+          getToken
+        );
+      },
+      reorderPhotos(id: string, input: ReorderListingPhotosInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/photos/reorder`),
+          okResponseSchema,
+          jsonPatch(input),
+          getToken
+        );
+      },
+      addFloorPlan(id: string, input: { key: string; zone?: { roomTag: string } }) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/floor-plan`),
+          floorPlanResponseSchema,
+          jsonPost(input),
+          getToken
+        );
+      },
+      pause(id: string) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/pause`),
+          statusResponseSchema,
+          { method: "POST" },
+          getToken
+        );
+      },
+      refresh(id: string) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/refresh`),
+          refreshResponseSchema,
+          { method: "POST" },
+          getToken
+        );
+      },
+      markRented(id: string) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/mark-rented`),
+          statusResponseSchema,
+          { method: "POST" },
+          getToken
+        );
+      },
+      delist(id: string) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/delist`),
+          statusResponseSchema,
+          { method: "POST" },
+          getToken
+        );
+      }
+    },
+    me: {
+      listings() {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/me/listings"),
+          ownedListingsResponseSchema,
+          {},
+          getToken
+        );
+      },
+      listing(id: string): Promise<OwnedListingDetail> {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/me/listings/${encodeURIComponent(id)}`),
+          ownedListingDetailSchema,
+          {},
+          getToken
+        );
+      }
+    },
+    uploads: {
+      presign(input: PresignUploadInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/uploads/presign"),
+          presignUploadResponseSchema,
+          jsonPost(input),
+          getToken
+        );
+      }
+    },
+    addresses: {
+      resolve(input: ResolveAddressInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/addresses/resolve"),
+          resolveAddressResponseSchema,
+          jsonPost(input),
+          getToken
+        );
+      }
+    },
+    onemap: {
+      search(query: string): Promise<OnemapSuggestion[]> {
+        const params = new URLSearchParams({ q: query });
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/onemap/search", params),
+          onemapSuggestionsSchema,
           {},
           getToken
         );

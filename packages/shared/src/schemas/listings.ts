@@ -64,6 +64,60 @@ export const listingsResponseSchema = z.object({
   cursor: z.string().nullable()
 });
 
+export const ownedListingSchema = z.object({
+  id: z.uuid(),
+  title: z.string().min(1),
+  description: z.string().nullable().optional(),
+  status: z.string().min(1),
+  ownerUserId: z.uuid().optional(),
+  agentUserId: z.uuid().nullable().optional(),
+  representedVia: z.string().optional(),
+  priceSgd: z.number().int().nonnegative(),
+  publishedAt: z.string().nullable().optional(),
+  refreshedAt: z.string().nullable(),
+  rentedAt: z.string().nullable().optional(),
+  delistedAt: z.string().nullable().optional(),
+  addressId: z.uuid().nullable().optional(),
+  block: z.string().nullable(),
+  street: z.string().nullable(),
+  postal: z.string().nullable().optional(),
+  town: z.string().nullable().optional(),
+  latitude: z.string().nullable().optional(),
+  longitude: z.string().nullable().optional(),
+  flatType: z.string().nullable(),
+  floorLevelBand: z.string().nullable().optional(),
+  floorAreaSqft: z.number().int().nullable().optional(),
+  blockId: z.uuid().nullable().optional(),
+  leaseMonths: z.number().int().nullable().optional(),
+  availableFrom: z.string().nullable().optional(),
+  furnishing: z.string().nullable().optional(),
+  photoCount: z.number().int().nonnegative()
+});
+
+export const ownedListingsResponseSchema = z.object({
+  items: z.array(ownedListingSchema)
+});
+
+export const ownedListingPhotoSchema = z.object({
+  id: z.uuid(),
+  objectPath: z.string().min(1),
+  thumbnailObjectPath: z.string().min(1).nullable().optional(),
+  roomTag: z.string().nullable(),
+  sortOrder: z.number().int(),
+  url: z.string().url()
+});
+
+export const ownedListingDetailSchema = ownedListingSchema.extend({
+  photos: z.array(ownedListingPhotoSchema),
+  floorPlan: z
+    .object({
+      id: z.uuid(),
+      objectPath: z.string().min(1),
+      url: z.string().url()
+    })
+    .nullable()
+});
+
 const centsSchema = z.union([
   z.number().int().nonnegative(),
   z.string().regex(/^[0-9]+$/, "must be a whole number of cents").transform(Number)

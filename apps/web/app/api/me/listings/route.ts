@@ -8,7 +8,7 @@ import {
   listings
 } from "../../../../../../packages/db/schema";
 import { db } from "../../../../lib/db";
-import { jsonResponse, mapError, requireAuth } from "../../../../lib/route-helpers";
+import { jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../lib/route-helpers";
 
 export async function GET(request: NextRequest) {
   try {
@@ -79,4 +79,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return mapError(error);
   }
+}
+
+export function OPTIONS() {
+  return optionsResponse();
 }

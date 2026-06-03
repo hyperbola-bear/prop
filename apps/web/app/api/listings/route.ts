@@ -6,7 +6,7 @@ import {
   listingsQuerySchema,
   listingsResponseSchema
 } from "../../../../../packages/shared/src/schemas";
-import { publicJson, publicOptions } from "../_cors";
+import { publicJson } from "../_cors";
 import { db } from "../../../lib/db";
 import { getPublicListings, InvalidCursorError } from "../../../lib/listings";
 import { checkRateLimit, createListingRateLimits } from "../../../lib/rate-limit";
@@ -15,6 +15,7 @@ import {
   jsonError,
   jsonResponse,
   mapError,
+  optionsResponse,
   requireAuth
 } from "../../../lib/route-helpers";
 
@@ -108,5 +109,5 @@ export async function POST(request: NextRequest) {
 }
 
 export function OPTIONS() {
-  return publicOptions();
+  return optionsResponse();
 }

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { listingFloorPlanZones, listingFloorPlans } from "../../../../../../../packages/db/schema";
 import { db } from "../../../../../lib/db";
 import { requireListingMutationAccess } from "../../../../../lib/listing-mutations";
-import { jsonResponse, mapError, requireAuth } from "../../../../../lib/route-helpers";
+import { jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../../lib/route-helpers";
 import { headStorageObject } from "../../../../../lib/storage";
 
 const listingIdSchema = z.uuid();
@@ -84,4 +84,8 @@ export async function DELETE(request: NextRequest, context: ListingRouteContext)
   } catch (error) {
     return mapError(error);
   }
+}
+
+export function OPTIONS() {
+  return optionsResponse();
 }
