@@ -33,6 +33,14 @@
     "./myinfo-mock": {
       "types": "./dist/myinfo-mock/index.d.ts",
       "default": "./dist/myinfo-mock/index.js"
+    },
+    "./onemap": {
+      "types": "./dist/onemap/index.d.ts",
+      "default": "./dist/onemap/index.js"
+    },
+    "./ssrf-guard": {
+      "types": "./dist/ssrf-guard/index.d.ts",
+      "default": "./dist/ssrf-guard/index.js"
     }
   },
   "scripts": {
