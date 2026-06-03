@@ -24,7 +24,7 @@ export type InsertOtpCodeInput = {
 export type OtpCodeStore = {
   insertCode(input: InsertOtpCodeInput): Promise<OtpCodeRecord>;
   findLatestActiveCode(phoneE164: string, now: Date): Promise<OtpCodeRecord | null>;
-  markConsumed(id: string, consumedAt: Date): Promise<void>;
+  markConsumed(id: string, consumedAt: Date): Promise<boolean>;
   recordFailedAttempt(id: string, attemptedAt: Date): Promise<void>;
 };
 
@@ -82,11 +82,14 @@ export class DrizzleOtpCodeStore implements OtpCodeStore {
     return row ? toOtpCodeRecord(row) : null;
   }
 
-  async markConsumed(id: string, consumedAt: Date): Promise<void> {
-    await this.getDb()
+  async markConsumed(id: string, consumedAt: Date): Promise<boolean> {
+    const [row] = await this.getDb()
       .update(otpCodes)
       .set({ consumedAt, updatedAt: consumedAt })
-      .where(eq(otpCodes.id, id));
+      .where(and(eq(otpCodes.id, id), isNull(otpCodes.consumedAt)))
+      .returning({ id: otpCodes.id });
+
+    return Boolean(row);
   }
 
   async recordFailedAttempt(id: string, attemptedAt: Date): Promise<void> {

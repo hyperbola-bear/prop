@@ -43,6 +43,10 @@ export async function verifyOtp(
     return { ok: false, error: "invalid_otp" };
   }
 
-  await store.markConsumed(activeCode.id, now);
+  const consumed = await store.markConsumed(activeCode.id, now);
+  if (!consumed) {
+    return { ok: false, error: "invalid_otp" };
+  }
+
   return { ok: true };
 }

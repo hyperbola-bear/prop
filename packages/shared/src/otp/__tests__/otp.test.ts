@@ -1,5 +1,8 @@
 import argon2 from "argon2";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { desc, eq } from "drizzle-orm";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { otpCodes } from "@proppy/db";
+import { closeOtpDb, getOtpDb } from "../db";
 import { requestOtp } from "../request";
 import type { OtpCodeRecord, OtpCodeStore } from "../store";
 import { verifyOtp } from "../verify";
@@ -39,11 +42,13 @@ class MemoryOtpStore implements OtpCodeStore {
     );
   }
 
-  async markConsumed(id: string, consumedAt: Date): Promise<void> {
+  async markConsumed(id: string, consumedAt: Date): Promise<boolean> {
     const record = this.records.find((candidate) => candidate.id === id);
-    if (record) {
+    if (record && record.consumedAt === null) {
       record.consumedAt = consumedAt;
+      return true;
     }
+    return false;
   }
 
   async recordFailedAttempt(id: string, attemptedAt: Date): Promise<void> {
@@ -71,6 +76,10 @@ function onlyRecord(store: MemoryOtpStore): OtpCodeRecord {
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.DEV_OTP_BYPASS;
+});
+
+afterAll(async () => {
+  await closeOtpDb();
 });
 
 describe("requestOtp", () => {
@@ -156,5 +165,31 @@ describe("verifyOtp", () => {
     });
 
     expect(store.records).toHaveLength(0);
+  });
+
+  it("allows exactly one concurrent real DB-backed verification to consume an OTP", async () => {
+    const uniquePhone = `+659${Math.floor(1000000 + Math.random() * 8999999)}`;
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    await requestOtp(uniquePhone, {
+      generateCode: () => "567890"
+    });
+
+    const results = await Promise.all([
+      verifyOtp(uniquePhone, "567890"),
+      verifyOtp(uniquePhone, "567890")
+    ]);
+
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toHaveLength(1);
+
+    const [row] = await getOtpDb()
+      .select()
+      .from(otpCodes)
+      .where(eq(otpCodes.phoneE164, uniquePhone))
+      .orderBy(desc(otpCodes.createdAt))
+      .limit(1);
+
+    expect(row?.consumedAt).toBeInstanceOf(Date);
   });
 });
