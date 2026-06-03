@@ -1,4 +1,11 @@
-import { GetObjectCommand, HeadBucketCommand, S3Client } from "@aws-sdk/client-s3";
+import { Buffer } from "node:buffer";
+import {
+  GetObjectCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "./env";
 
@@ -32,6 +39,54 @@ export async function presignPhotoGetUrl(objectPath: string): Promise<string> {
       Key: objectPath
     }),
     { expiresIn: 900 }
+  );
+}
+
+export async function presignObjectPutUrl(
+  objectPath: string,
+  contentType: string
+): Promise<string> {
+  return getSignedUrl(
+    getS3Client(),
+    new PutObjectCommand({
+      Bucket: getPhotoBucket(),
+      Key: objectPath,
+      ContentType: contentType
+    }),
+    { expiresIn: 900 }
+  );
+}
+
+export async function headStorageObject(objectPath: string) {
+  return getS3Client().send(
+    new HeadObjectCommand({
+      Bucket: getPhotoBucket(),
+      Key: objectPath
+    })
+  );
+}
+
+export async function getStorageObject(objectPath: string) {
+  return getS3Client().send(
+    new GetObjectCommand({
+      Bucket: getPhotoBucket(),
+      Key: objectPath
+    })
+  );
+}
+
+export async function putStorageObject(
+  objectPath: string,
+  body: Buffer,
+  contentType: string
+): Promise<void> {
+  await getS3Client().send(
+    new PutObjectCommand({
+      Bucket: getPhotoBucket(),
+      Key: objectPath,
+      Body: body,
+      ContentType: contentType
+    })
   );
 }
 

@@ -68,3 +68,7 @@ export const otpRequestRateLimits: Limit[] = [
   { id: "auth/otp/request/60s", max: 6, windowMs: 60_000 },
   { id: "auth/otp/request/5m", max: 10, windowMs: 5 * 60_000 }
 ];
+
+export const createListingRateLimits: Limit[] = [
+  { id: "listings/post/hour", max: 30, windowMs: 60 * 60_000 }
+];

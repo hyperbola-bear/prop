@@ -1,7 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "./route";
+import { eq } from "drizzle-orm";
+import { GET, POST } from "./route";
+import { signSessionToken } from "../../../lib/auth-context";
+import { db } from "../../../lib/db";
+import { clearRateLimits } from "../../../lib/rate-limit";
+import { listings, users } from "../../../../../packages/db/schema";
 import type { ListingsResponse } from "../../../../../packages/shared/src/types";
+
+async function tokenFor(email: string): Promise<string> {
+  const [user] = await db.select().from(users).where(eq(users.email, email));
+  if (!user) throw new Error(`Missing seed user ${email}`);
+  return signSessionToken(user.id, []);
+}
+
+function jsonRequest(path: string, token: string | null, body: unknown) {
+  return new NextRequest(`http://localhost:3100${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(body)
+  });
+}
 
 describe("GET /api/listings", () => {
   it("returns a paginated list of public HDB rental listings", async () => {
@@ -98,5 +120,66 @@ describe("GET /api/listings", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe(
       "http://localhost:3101"
     );
+  });
+});
+
+describe("POST /api/listings", () => {
+  it("creates a draft HDB rental listing for a landlord", async () => {
+    clearRateLimits();
+    const token = await tokenFor("landlord1@proppy.test");
+    const response = await POST(
+      jsonRequest("/api/listings", token, {
+        title: `Draft listing ${Date.now()}`,
+        priceSgd: 250000
+      })
+    );
+
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(body).toEqual({ id: expect.any(String), status: "draft" });
+
+    const [row] = await db.select().from(listings).where(eq(listings.id, body.id));
+    expect(row).toMatchObject({
+      status: "draft",
+      listingType: "rental",
+      propertyType: "hdb"
+    });
+  });
+
+  it("requires auth and rejects buyer-only users", async () => {
+    const unauthenticated = await POST(
+      jsonRequest("/api/listings", null, { title: "No auth" })
+    );
+    expect(unauthenticated.status).toBe(401);
+
+    const buyerToken = await tokenFor("renter1@proppy.test");
+    const buyer = await POST(
+      jsonRequest("/api/listings", buyerToken, { title: "Buyer draft" })
+    );
+    expect(buyer.status).toBe(403);
+  });
+
+  it("allows an agent to create on behalf of a seller", async () => {
+    clearRateLimits();
+    const agentToken = await tokenFor("agent1@proppy.test");
+    const [seller] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, "landlord1@proppy.test"));
+
+    const response = await POST(
+      jsonRequest("/api/listings", agentToken, {
+        title: `Agent draft ${Date.now()}`,
+        ownerUserId: seller!.id,
+        mandateVia: "agent_mandate"
+      })
+    );
+
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    const [row] = await db.select().from(listings).where(eq(listings.id, body.id));
+    expect(row?.ownerUserId).toBe(seller!.id);
+    expect(row?.agentUserId).not.toBeNull();
+    expect(row?.representedVia).toBe("agent_mandate");
   });
 });
