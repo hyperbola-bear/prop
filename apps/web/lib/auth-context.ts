@@ -98,7 +98,23 @@ function cookieToken(request: NextRequest): string | null {
 }
 
 export async function getCurrentUser(request: NextRequest): Promise<CurrentUser | null> {
-  const token = cookieToken(request) ?? bearerToken(request);
+  const cookie = cookieToken(request);
+  if (cookie) {
+    const currentUser = await currentUserFromToken(cookie);
+    if (currentUser) {
+      return currentUser;
+    }
+  }
+
+  const bearer = bearerToken(request);
+  if (!bearer) {
+    return null;
+  }
+
+  return currentUserFromToken(bearer);
+}
+
+async function currentUserFromToken(token: string): Promise<CurrentUser | null> {
   if (!token) {
     return null;
   }

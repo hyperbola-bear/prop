@@ -4,6 +4,8 @@ export const authRoleSchema = z.enum(["buyer", "renter", "seller", "landlord", "
 
 export const normalizedRoleSchema = z.enum(["buyer", "seller", "agent"]);
 
+export const selfServeRoleSchema = z.enum(["buyer", "renter", "seller", "landlord"]);
+
 export const singaporePhoneSchema = z.string().regex(/^\+65[0-9]{8}$/, {
   message: "Phone must be an E.164 Singapore number starting with +65"
 });
@@ -61,7 +63,7 @@ export const resetPasswordSchema = z.object({
 });
 
 export const addRoleSchema = z.object({
-  role: authRoleSchema
+  role: selfServeRoleSchema
 });
 
 export function normalizeRole(role: z.infer<typeof authRoleSchema>): z.infer<typeof normalizedRoleSchema> {
@@ -81,3 +83,4 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type AddRoleInput = z.infer<typeof addRoleSchema>;
+export type SelfServeRoleInput = z.infer<typeof selfServeRoleSchema>;

@@ -1,10 +1,12 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
+import { SignJWT } from "jose";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../../lib/db";
 import { users, userRoles, emailQueue } from "../../../../../packages/db/schema";
 import { getMyInfoMockPayload } from "../../../../../packages/shared/src/myinfo-mock";
 import { clearRateLimits } from "../../../lib/rate-limit";
+import { env } from "../../../lib/env";
 import { POST as signup } from "./signup/route";
 import { POST as requestOtp } from "./otp/request/route";
 import { POST as verifyOtp } from "./otp/verify/route";
@@ -24,6 +26,20 @@ function jsonRequest(path: string, body: unknown, headers: HeadersInit = {}) {
     },
     body: JSON.stringify(body)
   });
+}
+
+function jwtSecret(): Uint8Array {
+  return new TextEncoder().encode(env("JWT_SECRET", "dev-jwt-secret"));
+}
+
+async function expiredSessionToken(userId: string, roles: string[] = ["buyer"]): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  return new SignJWT({ roles, purpose: "session" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(userId)
+    .setIssuedAt(now - 3600)
+    .setExpirationTime(now - 60)
+    .sign(jwtSecret());
 }
 
 async function signupUniqueUser(role: "buyer" | "seller" | "agent" = "buyer") {
@@ -276,17 +292,71 @@ describe("M1 auth API routes", () => {
     }
   });
 
-  it("adds a second role for the authenticated user", async () => {
+  it("falls back to a valid bearer token when the session cookie is expired", async () => {
+    const loginResponse = await login(
+      jsonRequest("/api/auth/login", {
+        email: "renter1@proppy.test",
+        password: "Test!234"
+      })
+    );
+
+    expect(loginResponse.status).toBe(200);
+    const { token } = await loginResponse.json();
+    const staleCookie = await expiredSessionToken("stale-cookie-user");
+
+    const staleCookieWithBearerResponse = await me(
+      new NextRequest("http://localhost:3100/api/me", {
+        headers: {
+          authorization: `Bearer ${token}`,
+          cookie: `authjs.session-token=${staleCookie}`
+        }
+      })
+    );
+    expect(staleCookieWithBearerResponse.status).toBe(200);
+    await expect(staleCookieWithBearerResponse.json()).resolves.toMatchObject({
+      email: "renter1@proppy.test",
+      phone: "+6580000005",
+      roles: expect.arrayContaining(["buyer"])
+    });
+
+    const staleCookieOnlyResponse = await me(
+      new NextRequest("http://localhost:3100/api/me", {
+        headers: { cookie: `authjs.session-token=${staleCookie}` }
+      })
+    );
+    expect(staleCookieOnlyResponse.status).toBe(401);
+  });
+
+  it("adds a seller role idempotently and rejects self-serve agent role upgrades", async () => {
     const { userId, phone } = await signupUniqueUser();
     const verifyResponse = await verifyOtp(
       jsonRequest("/api/auth/otp/verify", { phone, code: "000000" })
     );
     const { token } = await verifyResponse.json();
 
+    const agentResponse = await addRole(
+      jsonRequest(
+        "/api/me/roles",
+        { role: "agent" },
+        { authorization: `Bearer ${token}` }
+      )
+    );
+
+    expect(agentResponse.status).toBe(400);
+    await expect(agentResponse.json()).resolves.toEqual({
+      error: {
+        code: "role_not_self_serve",
+        message: "Agent role requires CEA verification via /api/agents/apply"
+      }
+    });
+
+    let roles = await db.select().from(userRoles).where(eq(userRoles.userId, userId));
+    expect(roles.map((role) => role.role)).not.toContain("agent");
+
     const response = await addRole(
       jsonRequest(
         "/api/me/roles",
-        { role: "landlord" },
+        { role: "seller" },
         { authorization: `Bearer ${token}` }
       )
     );
@@ -295,8 +365,23 @@ describe("M1 auth API routes", () => {
     await expect(response.json()).resolves.toEqual({
       roles: expect.arrayContaining(["buyer", "seller"])
     });
-    const roles = await db.select().from(userRoles).where(eq(userRoles.userId, userId));
+
+    const repeatResponse = await addRole(
+      jsonRequest(
+        "/api/me/roles",
+        { role: "seller" },
+        { authorization: `Bearer ${token}` }
+      )
+    );
+
+    expect(repeatResponse.status).toBe(200);
+    await expect(repeatResponse.json()).resolves.toEqual({
+      roles: expect.arrayContaining(["buyer", "seller"])
+    });
+
+    roles = await db.select().from(userRoles).where(eq(userRoles.userId, userId));
     expect(roles.map((role) => role.role)).toEqual(expect.arrayContaining(["buyer", "seller"]));
+    expect(roles.filter((role) => role.role === "seller")).toHaveLength(1);
   });
 
   it("queues a password reset email and accepts a valid reset token", async () => {

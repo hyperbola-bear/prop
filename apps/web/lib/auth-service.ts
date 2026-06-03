@@ -12,7 +12,11 @@ import {
 import { db } from "./db";
 import { env } from "./env";
 import { signPasswordResetToken, signSessionToken } from "./auth-context";
-import { normalizeRole, type authRoleSchema } from "../../../packages/shared/src/schemas";
+import {
+  normalizeRole,
+  type authRoleSchema,
+  type selfServeRoleSchema
+} from "../../../packages/shared/src/schemas";
 import type { z } from "zod";
 
 export type UserWithRoles = {
@@ -191,7 +195,7 @@ export async function tokenForUser(user: Pick<UserWithRoles, "id" | "roles">): P
 
 export async function addRoleForUser(
   userId: string,
-  roleInput: z.infer<typeof authRoleSchema>
+  roleInput: z.infer<typeof selfServeRoleSchema>
 ): Promise<string[]> {
   const role = normalizeRole(roleInput);
   const now = new Date();
