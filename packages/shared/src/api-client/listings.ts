@@ -24,6 +24,18 @@ export type ListListingsOptions = {
   cursor?: string | null;
 };
 
+export class ApiClientError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiClientError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
 }
@@ -70,17 +82,27 @@ async function request<T>(
 
   if (!response.ok) {
     const payload: unknown = await response.json().catch(() => null);
-    const message =
+    const errorPayload =
       typeof payload === "object" &&
       payload !== null &&
       "error" in payload &&
       typeof payload.error === "object" &&
-      payload.error !== null &&
-      "message" in payload.error &&
-      typeof payload.error.message === "string"
-        ? payload.error.message
+      payload.error !== null
+        ? payload.error
+        : null;
+    const message =
+      errorPayload &&
+      "message" in errorPayload &&
+      typeof errorPayload.message === "string"
+        ? errorPayload.message
         : `API request failed with HTTP ${response.status}: ${url}`;
-    throw new Error(message);
+    const code =
+      errorPayload &&
+      "code" in errorPayload &&
+      typeof errorPayload.code === "string"
+        ? errorPayload.code
+        : undefined;
+    throw new ApiClientError(message, response.status, code);
   }
 
   return schema.parse(await response.json());

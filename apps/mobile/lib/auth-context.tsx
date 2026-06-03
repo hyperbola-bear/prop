@@ -1,4 +1,7 @@
-import type { AuthenticatedUser } from "@proppy/shared/api-client";
+import {
+  ApiClientError,
+  type AuthenticatedUser
+} from "@proppy/shared/api-client";
 import * as SecureStore from "expo-secure-store";
 import {
   createContext,
@@ -14,6 +17,11 @@ import { mobileApiClient } from "./api";
 import { setMobileApiToken } from "./auth-token";
 
 const TOKEN_STORAGE_KEY = "proppy.auth.token";
+const INVALID_STORED_JWT_ERROR_CODES = new Set([
+  "invalid_token",
+  "token_expired",
+  "unauthorized"
+]);
 
 type AuthContextValue = {
   token: string | null;
@@ -25,6 +33,8 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+export const AUTH_TOKEN_STORAGE_KEY = TOKEN_STORAGE_KEY;
 
 async function readStoredToken() {
   if (Platform.OS === "web") {
@@ -43,7 +53,15 @@ async function writeStoredToken(token: string) {
   await SecureStore.setItemAsync(TOKEN_STORAGE_KEY, token);
 }
 
-async function deleteStoredToken() {
+export async function getAuthToken() {
+  return readStoredToken();
+}
+
+export async function storeAuthToken(token: string) {
+  await writeStoredToken(token);
+}
+
+export async function deleteStoredToken() {
   if (Platform.OS === "web") {
     globalThis.localStorage?.removeItem(TOKEN_STORAGE_KEY);
     return;
@@ -52,19 +70,70 @@ async function deleteStoredToken() {
   await SecureStore.deleteItemAsync(TOKEN_STORAGE_KEY);
 }
 
+export function isInvalidStoredJwtError(cause: unknown) {
+  return (
+    cause instanceof ApiClientError &&
+    (cause.status === 401 ||
+      (cause.code
+        ? INVALID_STORED_JWT_ERROR_CODES.has(cause.code.toLowerCase())
+        : false))
+  );
+}
+
+type ClearLocalAuthSessionOptions = {
+  setTokenState?: (token: string | null) => void;
+  setUserState?: (user: AuthenticatedUser | null) => void;
+};
+
+export async function clearLocalAuthSession({
+  setTokenState,
+  setUserState
+}: ClearLocalAuthSessionOptions = {}) {
+  await deleteStoredToken();
+  setMobileApiToken(null);
+  setTokenState?.(null);
+  setUserState?.(null);
+}
+
+type RefreshUserOptions = {
+  loadUser: () => Promise<AuthenticatedUser>;
+  clearSession: () => Promise<void>;
+  setUserState: (user: AuthenticatedUser | null) => void;
+};
+
+export async function refreshUserOrClearInvalidToken({
+  loadUser,
+  clearSession,
+  setUserState
+}: RefreshUserOptions) {
+  try {
+    const nextUser = await loadUser();
+    setUserState(nextUser);
+  } catch (cause) {
+    setUserState(null);
+    if (isInvalidStoredJwtError(cause)) {
+      await clearSession();
+    }
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [isHydrating, setIsHydrating] = useState(true);
 
+  const clearSessionLocally = useCallback(
+    () => clearLocalAuthSession({ setTokenState: setToken, setUserState: setUser }),
+    []
+  );
+
   const refreshUser = useCallback(async () => {
-    try {
-      const nextUser = await mobileApiClient.auth.me();
-      setUser(nextUser);
-    } catch {
-      setUser(null);
-    }
-  }, []);
+    await refreshUserOrClearInvalidToken({
+      clearSession: clearSessionLocally,
+      loadUser: () => mobileApiClient.auth.me(),
+      setUserState: setUser
+    });
+  }, [clearSessionLocally]);
 
   const signIn = useCallback(
     async (nextToken: string) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createApiClient } from "../listings";
+import { ApiClientError, createApiClient } from "../listings";
 
 describe("shared API auth client", () => {
   it("attaches bearer JWTs from the getToken callback", async () => {
@@ -49,5 +49,31 @@ describe("shared API auth client", () => {
     >;
     const init = calls[0]?.[1];
     expect((init?.headers as Headers).get("Authorization")).toBeNull();
+  });
+
+  it("surfaces response status and error codes for failed auth requests", async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json(
+        {
+          error: {
+            code: "token_expired",
+            message: "Your session has expired"
+          }
+        },
+        { status: 401 }
+      )
+    );
+    const client = createApiClient({
+      baseUrl: "http://localhost:3100",
+      fetch: fetcher,
+      getToken: () => "expired.jwt"
+    });
+
+    await expect(client.auth.me()).rejects.toMatchObject({
+      code: "token_expired",
+      message: "Your session has expired",
+      name: "ApiClientError",
+      status: 401
+    } satisfies Partial<ApiClientError>);
   });
 });
