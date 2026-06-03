@@ -1,9 +1,17 @@
-import { getMyInfoMockPayload } from "../../../../../packages/shared/src/myinfo-mock";
+import { notFound } from "next/navigation";
+import {
+  getMyInfoMockPayload,
+  isMyInfoEnabled
+} from "../../../../../packages/shared/src/myinfo-mock";
 import { SignupForm } from "../SignupForm";
 
 export const dynamic = "force-dynamic";
 
 export default function MyInfoCallbackPage() {
+  if (!isMyInfoEnabled()) {
+    notFound();
+  }
+
   const payload = getMyInfoMockPayload();
 
   return (

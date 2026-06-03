@@ -1,19 +1,44 @@
 import { NextRequest } from "next/server";
 import { signupSchema } from "../../../../../../packages/shared/src/schemas";
+import {
+  getMyInfoMockPayload,
+  isMyInfoEnabled
+} from "../../../../../../packages/shared/src/myinfo-mock";
 import { createUser } from "../../../../lib/auth-service";
 import { jsonError, jsonResponse, mapError, optionsResponse } from "../../../../lib/route-helpers";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = signupSchema.parse(await request.json());
+    const rawBody = await request.json();
+
+    const hasClientMyInfoPayload =
+      typeof rawBody === "object" &&
+      rawBody !== null &&
+      Object.prototype.hasOwnProperty.call(rawBody, "myinfoPayload");
+
+    if (hasClientMyInfoPayload && !isMyInfoEnabled()) {
+      return jsonError(
+        400,
+        "myinfo_disabled",
+        "MyInfo signup is not available"
+      );
+    }
+
+    const body = signupSchema.parse(rawBody);
+    const trustedMyInfoPayload =
+      hasClientMyInfoPayload && isMyInfoEnabled() ? getMyInfoMockPayload() : undefined;
+
     const created = await createUser({
       email: body.email,
       password: body.password,
       phone: body.phone,
       role: body.role,
       ...(body.cea_no ? { cea_no: body.cea_no } : {}),
-      ...(body.name ? { name: body.name } : {}),
-      ...(body.myinfoPayload ? { myinfoPayload: body.myinfoPayload } : {})
+      ...(trustedMyInfoPayload
+        ? { name: trustedMyInfoPayload.name, myinfoPayload: trustedMyInfoPayload }
+        : body.name
+          ? { name: body.name }
+          : {})
     });
 
     return jsonResponse({

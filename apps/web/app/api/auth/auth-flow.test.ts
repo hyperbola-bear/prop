@@ -1,8 +1,9 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../../lib/db";
 import { users, userRoles, emailQueue } from "../../../../../packages/db/schema";
+import { getMyInfoMockPayload } from "../../../../../packages/shared/src/myinfo-mock";
 import { clearRateLimits } from "../../../lib/rate-limit";
 import { POST as signup } from "./signup/route";
 import { POST as requestOtp } from "./otp/request/route";
@@ -45,9 +46,19 @@ async function signupUniqueUser(role: "buyer" | "seller" | "agent" = "buyer") {
   return { email, phone, userId: body.userId as string };
 }
 
+const originalMyInfoEnabled = process.env.AUTH_MYINFO_ENABLED;
+
 describe("M1 auth API routes", () => {
   beforeEach(() => {
     clearRateLimits();
+  });
+
+  afterEach(() => {
+    if (originalMyInfoEnabled === undefined) {
+      delete process.env.AUTH_MYINFO_ENABLED;
+    } else {
+      process.env.AUTH_MYINFO_ENABLED = originalMyInfoEnabled;
+    }
   });
 
   it("signs up a user with argon2id password hash, PDPA timestamp, role, and unverified phone", async () => {
@@ -98,6 +109,70 @@ describe("M1 auth API routes", () => {
         }
       }
     });
+  });
+
+  it("rejects client-supplied MyInfo payloads while MyInfo is disabled without creating a user", async () => {
+    delete process.env.AUTH_MYINFO_ENABLED;
+    const email = `myinfo-disabled-${Date.now()}@proppy.test`;
+
+    const response = await signup(
+      jsonRequest("/api/auth/signup", {
+        email,
+        password: "Test!234",
+        phone: `+65${Math.floor(10000000 + Math.random() * 89999999).toString()}`,
+        role: "buyer",
+        pdpaConsent: true,
+        name: "Forged Client Name",
+        myinfoPayload: {
+          name: "Forged Client Name",
+          uinfin: "T0000000Z",
+          nationality: "ZZ",
+          mobileno: "+6599999999"
+        }
+      })
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "myinfo_disabled",
+        message: "MyInfo signup is not available"
+      }
+    });
+
+    const [row] = await db.select().from(users).where(eq(users.email, email));
+    expect(row).toBeUndefined();
+  });
+
+  it("persists only server-derived MyInfo payloads when MyInfo is enabled", async () => {
+    process.env.AUTH_MYINFO_ENABLED = "true";
+    const email = `myinfo-enabled-${Date.now()}@proppy.test`;
+    const trustedPayload = getMyInfoMockPayload();
+
+    const response = await signup(
+      jsonRequest("/api/auth/signup", {
+        email,
+        password: "Test!234",
+        phone: `+65${Math.floor(10000000 + Math.random() * 89999999).toString()}`,
+        role: "buyer",
+        pdpaConsent: true,
+        name: "Forged Client Name",
+        myinfoPayload: {
+          name: "Forged Client Name",
+          uinfin: "T0000000Z",
+          nationality: "ZZ",
+          dob: "1900-01-01",
+          sex: "X",
+          mobileno: "+6599999999"
+        }
+      })
+    );
+
+    expect(response.status).toBe(200);
+
+    const [row] = await db.select().from(users).where(eq(users.email, email));
+    expect(row?.name).toBe(trustedPayload.name);
+    expect(row?.myinfoPayload).toEqual(trustedPayload);
   });
 
   it("requests OTP without exposing the code, rate limits OTP, and verifies the dev bypass", async () => {
