@@ -16,7 +16,7 @@
     "db:migrate": "npm run db:migrate -w packages/db",
     "db:seed": "npm run db:seed -w packages/db",
     "db:reset": "npm run db:reset -w packages/db",
-    "worker:start": "node -e \"console.log('worker workspace not initialized yet')\""
+    "worker:start": "npm run start -w apps/worker"
   },
   "devDependencies": {
     "@types/node": "25.0.0",
