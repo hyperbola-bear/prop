@@ -30,6 +30,13 @@ export function AuthNav({ user }: AuthNavProps) {
   return (
     <div className="flex items-center gap-4">
       <a
+        data-testid="nav-favorites"
+        href="/favorites"
+        className="text-sm font-semibold text-slate-700 hover:text-proppy-primary"
+      >
+        Favorites
+      </a>
+      <a
         href="/dashboard/listings"
         className="text-sm font-semibold text-slate-700 hover:text-proppy-primary"
       >

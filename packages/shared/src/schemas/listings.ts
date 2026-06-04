@@ -30,6 +30,8 @@ export const listingSummarySchema = z.object({
   room_only: z.boolean().optional(),
   published_at: z.string().nullable().optional(),
   refreshed_at: z.string().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
   distance_to_mrt_m: z.number().nonnegative().nullable().optional()
 });
 

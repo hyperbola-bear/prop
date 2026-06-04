@@ -51,6 +51,7 @@ type ListingSeed = {
   leaseMonths: 12 | 24;
   availableFrom: string;
   furnishing: "Unfurnished" | "Partial" | "Fully";
+  roomOnly?: boolean;
 };
 
 const seedUsers: SeedUser[] = [
@@ -211,7 +212,8 @@ const listings: ListingSeed[] = [
     floorLevelBand: "mid",
     leaseMonths: 12,
     availableFrom: "2026-07-05",
-    furnishing: "Unfurnished"
+    furnishing: "Unfurnished",
+    roomOnly: true
   },
   {
     fixtureNo: 8,
@@ -317,7 +319,8 @@ const listings: ListingSeed[] = [
     floorLevelBand: "high",
     leaseMonths: 12,
     availableFrom: "2026-06-30",
-    furnishing: "Partial"
+    furnishing: "Partial",
+    roomOnly: true
   },
   {
     fixtureNo: 13,
@@ -817,13 +820,14 @@ async function seedListing(
     )
     values (
       ${listingId}, ${listing.leaseMonths}, ${listing.availableFrom}, ${listing.furnishing},
-      false, ${Number(listing.priceCents)}, false, ${index % 3 === 0}, true, false,
-      ${JSON.stringify({ minimumLeaseMonths: listing.leaseMonths, wholeUnit: true })}
+      ${listing.roomOnly ?? false}, ${Number(listing.priceCents)}, false, ${index % 3 === 0}, true, false,
+      ${JSON.stringify({ minimumLeaseMonths: listing.leaseMonths, wholeUnit: !(listing.roomOnly ?? false) })}
     )
     on conflict (listing_id) do update set
       lease_months = excluded.lease_months,
       available_from = excluded.available_from,
       furnishing = excluded.furnishing,
+      room_only = excluded.room_only,
       deposit_sgd = excluded.deposit_sgd,
       tenancy_terms = excluded.tenancy_terms,
       updated_at = now()

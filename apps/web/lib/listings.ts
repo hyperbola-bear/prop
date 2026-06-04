@@ -335,6 +335,8 @@ type ListingRow = {
   street: string;
   postal: string | null;
   town: string;
+  latitude: string | null;
+  longitude: string | null;
   flatType: string;
   floorAreaSqft: number;
   leaseMonths: number;
@@ -368,6 +370,8 @@ function toSummary(row: ListingRow, photos: ListingPhoto[]): ListingSummary {
     room_only: row.roomOnly,
     published_at: row.publishedAt?.toISOString() ?? null,
     refreshed_at: row.refreshedAt?.toISOString() ?? null,
+    latitude: row.latitude ? Number(row.latitude) : null,
+    longitude: row.longitude ? Number(row.longitude) : null,
     distance_to_mrt_m:
       row.distanceToMrtM === null || row.distanceToMrtM === undefined
         ? null
@@ -404,6 +408,8 @@ export async function getPublicListings(options: PublicListingOptions): Promise<
       street: addresses.street,
       postal: addresses.postalCode,
       town: addresses.town,
+      latitude: addresses.latitude,
+      longitude: addresses.longitude,
       flatType: listingHdb.flatType,
       floorAreaSqft: listingHdb.floorAreaSqft,
       leaseMonths: listingRental.leaseMonths,
@@ -454,6 +460,8 @@ export async function getPublicListingDetail(id: string): Promise<ListingDetail 
       street: addresses.street,
       postal: addresses.postalCode,
       town: addresses.town,
+      latitude: addresses.latitude,
+      longitude: addresses.longitude,
       flatType: listingHdb.flatType,
       floorAreaSqft: listingHdb.floorAreaSqft,
       leaseMonths: listingRental.leaseMonths,
@@ -509,6 +517,8 @@ export async function getFavoriteListings(userId: string): Promise<{ items: List
       street: addresses.street,
       postal: addresses.postalCode,
       town: addresses.town,
+      latitude: addresses.latitude,
+      longitude: addresses.longitude,
       flatType: listingHdb.flatType,
       floorAreaSqft: listingHdb.floorAreaSqft,
       leaseMonths: listingRental.leaseMonths,

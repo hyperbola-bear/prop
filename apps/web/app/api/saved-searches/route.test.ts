@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
-import { DELETE } from "./[id]/route";
+import { DELETE, PATCH } from "./[id]/route";
 import { GET, POST } from "./route";
 import { signSessionToken } from "../../../lib/auth-context";
 import { db } from "../../../lib/db";
@@ -96,5 +96,31 @@ describe("saved searches API", () => {
       })
     );
     expect(invalid.status).toBe(400);
+  });
+
+  it("updates the notify-email preference for a saved search", async () => {
+    const token = await tokenFor("renter1@proppy.test");
+    const name = `Notify toggle ${Date.now()}`;
+    const createdResponse = await POST(
+      request("/api/saved-searches", "POST", token, {
+        name,
+        query: { town: "TAMPINES" },
+        notify_email: true
+      })
+    );
+    expect(createdResponse.status).toBe(201);
+    const created = await createdResponse.json();
+
+    const patchedResponse = await PATCH(
+      request(`/api/saved-searches/${created.id}`, "PATCH", token, {
+        notify_email: false
+      }),
+      { params: Promise.resolve({ id: created.id }) }
+    );
+    expect(patchedResponse.status).toBe(200);
+    await expect(patchedResponse.json()).resolves.toMatchObject({
+      id: created.id,
+      notify_email: false
+    });
   });
 });
