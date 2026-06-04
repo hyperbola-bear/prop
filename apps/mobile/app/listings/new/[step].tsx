@@ -398,12 +398,6 @@ export default function ListingWizardScreen() {
     setErrors({});
     try {
       if (isMandateStep) {
-        if (!draft.ownerUserId && !draft.freeformSellerEmail.trim()) {
-          setErrors({
-            ownerUserId: "Select a seller or enter a seller email before continuing."
-          });
-          return;
-        }
         if (!draft.ownerUserId && draft.freeformSellerEmail.trim()) {
           const client = await mobileApiClient.me.createClient({
             email: draft.freeformSellerEmail.trim()
@@ -420,50 +414,41 @@ export default function ListingWizardScreen() {
         return;
       }
       if (contentStep === 1) {
-        if (draft.propertyType !== "hdb") {
-          setErrors({ propertyType: "HDB is required for this MVP." });
-          return;
+        if (draft.propertyType === "hdb") {
+          await ensureDraft();
         }
-        await ensureDraft();
-      }
-      if (contentStep === 2 && (!draft.addressId || !draft.blockId)) {
-        setErrors({ address: "Select a OneMap suggestion before continuing." });
-        return;
       }
       if (contentStep === 3) {
-        if (!draft.flatType) {
-          setErrors({ flatType: "Flat type is required." });
-          return;
+        const floorAreaSqft = Number(draft.floorAreaSqft);
+        if (draft.flatType && Number.isFinite(floorAreaSqft) && floorAreaSqft > 0) {
+          await patchListing({
+            blockId: draft.blockId,
+            flatType: draft.flatType,
+            floorAreaSqft,
+            floorLevelBand: draft.floorLevelBand || null
+          });
         }
-        if (!draft.floorAreaSqft) {
-          setErrors({ floorAreaSqft: "Floor area is required." });
-          return;
-        }
-        await patchListing({
-          blockId: draft.blockId,
-          flatType: draft.flatType,
-          floorAreaSqft: Number(draft.floorAreaSqft),
-          floorLevelBand: draft.floorLevelBand || null
-        });
-      }
-      if (contentStep === 4 && draft.photos.length < 3) {
-        setErrors({ photos: "At least 3 photos required." });
-        return;
       }
       if (contentStep === 6) {
         const rent = Number(draft.monthlyRent);
-        if (Number.isNaN(rent) || rent < 100 || rent > 50000) {
-          setErrors({ monthlyRent: "Monthly rent must be between S$100 and S$50,000." });
-          return;
+        if (!Number.isNaN(rent) && rent >= 100 && rent <= 50000) {
+          const patch: Record<string, unknown> = {
+            description: draft.description,
+            priceSgd: dollarsToCents(draft.monthlyRent),
+            title: draft.title
+          };
+          const leaseMonths = Number(draft.leaseMonths);
+          if (Number.isInteger(leaseMonths) && leaseMonths >= 1 && leaseMonths <= 36) {
+            patch.leaseMonths = leaseMonths;
+          }
+          if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(draft.availableFrom)) {
+            patch.availableFrom = draft.availableFrom;
+          }
+          if ((FURNISHING as readonly string[]).includes(draft.furnishing)) {
+            patch.furnishing = draft.furnishing;
+          }
+          await patchListing(patch);
         }
-        await patchListing({
-          availableFrom: draft.availableFrom,
-          description: draft.description,
-          furnishing: draft.furnishing,
-          leaseMonths: Number(draft.leaseMonths),
-          priceSgd: dollarsToCents(draft.monthlyRent),
-          title: draft.title
-        });
       }
       goToStep(step + 1);
     } catch (cause) {
@@ -852,7 +837,7 @@ export default function ListingWizardScreen() {
             />
           </View>
           {missingFields.length > 0 ? (
-            <View style={styles.missingBox}>
+            <View style={styles.missingBox} testID="wizard-missing-fields">
               <Text style={styles.missingTitle}>Missing fields</Text>
               {missingFields.map((field) => (
                 <Text key={field} style={styles.missingText}>

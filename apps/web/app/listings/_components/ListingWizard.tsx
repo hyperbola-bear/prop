@@ -18,14 +18,14 @@ type Suggestion = {
   LONGITUDE: string;
 };
 
-type WizardPhoto = {
+export type WizardPhoto = {
   id: string;
   url: string;
   roomTag: string;
   sortOrder: number;
 };
 
-type ListingDraft = {
+export type ListingDraft = {
   id?: string;
   status?: string;
   propertyType: "hdb" | "";
@@ -177,6 +177,93 @@ async function uploadToPresignedUrl(
   });
 }
 
+export function missingFieldsForDraft(draft: ListingDraft): string[] {
+  const missing: string[] = [];
+  if (!draft.addressId || !draft.blockId) missing.push("Address");
+  if (!draft.flatType) missing.push("Flat type");
+  if (!draft.floorAreaSqft) missing.push("Floor area");
+  if (draft.photos.length < 3) missing.push("At least 3 photos required");
+  if (!draft.monthlyRent || Number(draft.monthlyRent) < 100 || Number(draft.monthlyRent) > 50000) {
+    missing.push("Monthly rent must be between S$100 and S$50,000");
+  }
+  if (!draft.leaseMonths) missing.push("Lease months");
+  if (!draft.availableFrom) missing.push("Available from date");
+  if (!draft.furnishing) missing.push("Furnishing");
+  return missing;
+}
+
+function buildRentalTermsPatch(draft: ListingDraft): Record<string, unknown> | null {
+  const rent = Number(draft.monthlyRent);
+  if (Number.isNaN(rent) || rent < 100 || rent > 50000) {
+    return null;
+  }
+
+  const patch: Record<string, unknown> = {
+    title: draft.title,
+    description: draft.description,
+    priceSgd: dollarsToCents(draft.monthlyRent)
+  };
+  const leaseMonths = Number(draft.leaseMonths);
+  if (Number.isInteger(leaseMonths) && leaseMonths >= 1 && leaseMonths <= 36) {
+    patch.leaseMonths = leaseMonths;
+  }
+  if (/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(draft.availableFrom)) {
+    patch.availableFrom = draft.availableFrom;
+  }
+  if ((FURNISHING as readonly string[]).includes(draft.furnishing)) {
+    patch.furnishing = draft.furnishing;
+  }
+  return patch;
+}
+
+export function ListingWizardReview({
+  draft,
+  errors,
+  isBusy,
+  isEdit,
+  missingFields,
+  onPublish
+}: {
+  draft: ListingDraft;
+  errors: Record<string, string>;
+  isBusy: boolean;
+  isEdit: boolean;
+  missingFields: string[];
+  onPublish: () => void;
+}) {
+  return (
+    <section data-testid="wizard-step-7" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="text-2xl font-bold text-slate-950">Review</h2>
+      <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
+        <div><dt className="font-semibold">Title</dt><dd>{draft.title}</dd></div>
+        <div><dt className="font-semibold">Address</dt><dd>{draft.block} {draft.street} {draft.postal}</dd></div>
+        <div><dt className="font-semibold">Flat</dt><dd>{draft.flatType} · {draft.floorAreaSqft} sqft · {draft.floorLevelBand}</dd></div>
+        <div><dt className="font-semibold">Photos</dt><dd>{draft.photos.length} uploaded</dd></div>
+        <div><dt className="font-semibold">Floor plan</dt><dd>{draft.floorPlanKey ? "Uploaded with zone overlay" : "Optional not uploaded"}</dd></div>
+        <div><dt className="font-semibold">Rent</dt><dd>S${draft.monthlyRent || "—"} · {draft.leaseMonths} months · {draft.furnishing || "—"}</dd></div>
+      </dl>
+      {missingFields.length > 0 ? (
+        <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-800">
+          <p className="font-bold">Missing fields</p>
+          <ul data-testid="wizard-missing-fields" className="mt-2 list-disc pl-5">
+            {missingFields.map((field) => <li key={field}>{field}</li>)}
+          </ul>
+        </div>
+      ) : null}
+      {errors.publish ? <p role="alert" className="mt-4 text-sm font-semibold text-red-700">{errors.publish}</p> : null}
+      <button
+        data-testid="wizard-publish"
+        type="button"
+        disabled={isBusy || missingFields.length > 0}
+        onClick={onPublish}
+        className="mt-6 rounded-full bg-proppy-primary px-6 py-3 font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {isEdit && draft.status === "published" ? "Save changes" : isBusy ? "Publishing…" : "Publish"}
+      </button>
+    </section>
+  );
+}
+
 export function ListingWizard({ user, initialListingId }: WizardProps) {
   const isAgent = user.roles.includes("agent");
   const isEdit = Boolean(initialListingId);
@@ -304,20 +391,7 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
     return () => window.clearTimeout(timeout);
   }, [addressQuery, step]);
 
-  const missingFields = useMemo(() => {
-    const missing: string[] = [];
-    if (!draft.addressId || !draft.blockId) missing.push("Address");
-    if (!draft.flatType) missing.push("Flat type");
-    if (!draft.floorAreaSqft) missing.push("Floor area");
-    if (draft.photos.length < 3) missing.push("At least 3 photos required");
-    if (!draft.monthlyRent || Number(draft.monthlyRent) < 100 || Number(draft.monthlyRent) > 50000) {
-      missing.push("Monthly rent must be between S$100 and S$50,000");
-    }
-    if (!draft.leaseMonths) missing.push("Lease months");
-    if (!draft.availableFrom) missing.push("Available from date");
-    if (!draft.furnishing) missing.push("Furnishing");
-    return missing;
-  }, [draft]);
+  const missingFields = useMemo(() => missingFieldsForDraft(draft), [draft]);
 
   const ensureDraft = useCallback(async () => {
     if (draft.id) {
@@ -519,10 +593,6 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
   async function next() {
     setErrors({});
     if (step === 0) {
-      if (!draft.ownerUserId && !draft.freeformSellerEmail) {
-        setErrors({ ownerUserId: "Select a seller or enter a seller email before continuing." });
-        return;
-      }
       if (!draft.ownerUserId && draft.freeformSellerEmail) {
         const client = await jsonFetch<SellerClient>("/api/me/clients", {
           method: "POST",
@@ -535,46 +605,26 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
       return;
     }
     if (step === 1) {
-      if (draft.propertyType !== "hdb") {
-        setErrors({ propertyType: "HDB is required for this MVP." });
-        return;
+      if (draft.propertyType === "hdb") {
+        await ensureDraft();
       }
-      await ensureDraft();
     }
     if (step === 3) {
-      if (!draft.flatType) {
-        setErrors({ flatType: "Flat type is required." });
-        return;
+      const floorAreaSqft = Number(draft.floorAreaSqft);
+      if (draft.flatType && Number.isFinite(floorAreaSqft) && floorAreaSqft > 0) {
+        await patchListing({
+          flatType: draft.flatType,
+          floorLevelBand: draft.floorLevelBand || null,
+          floorAreaSqft,
+          blockId: draft.blockId
+        });
       }
-      if (!draft.floorAreaSqft) {
-        setErrors({ floorAreaSqft: "Floor area is required." });
-        return;
-      }
-      await patchListing({
-        flatType: draft.flatType,
-        floorLevelBand: draft.floorLevelBand || null,
-        floorAreaSqft: Number(draft.floorAreaSqft),
-        blockId: draft.blockId
-      });
-    }
-    if (step === 4 && draft.photos.length < 3) {
-      setErrors({ photos: "At least 3 photos required." });
-      return;
     }
     if (step === 6) {
-      const rent = Number(draft.monthlyRent);
-      if (Number.isNaN(rent) || rent < 100 || rent > 50000) {
-        setErrors({ monthlyRent: "Monthly rent must be between S$100 and S$50,000." });
-        return;
+      const rentalTermsPatch = buildRentalTermsPatch(draft);
+      if (rentalTermsPatch) {
+        await patchListing(rentalTermsPatch);
       }
-      await patchListing({
-        title: draft.title,
-        description: draft.description,
-        priceSgd: dollarsToCents(draft.monthlyRent),
-        leaseMonths: Number(draft.leaseMonths),
-        availableFrom: draft.availableFrom,
-        furnishing: draft.furnishing
-      });
     }
     setStep(Math.min(7, step + 1));
   }
@@ -885,35 +935,14 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
       ) : null}
 
       {step === 7 ? (
-        <section data-testid="wizard-step-7" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-2xl font-bold text-slate-950">Review</h2>
-          <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2">
-            <div><dt className="font-semibold">Title</dt><dd>{draft.title}</dd></div>
-            <div><dt className="font-semibold">Address</dt><dd>{draft.block} {draft.street} {draft.postal}</dd></div>
-            <div><dt className="font-semibold">Flat</dt><dd>{draft.flatType} · {draft.floorAreaSqft} sqft · {draft.floorLevelBand}</dd></div>
-            <div><dt className="font-semibold">Photos</dt><dd>{draft.photos.length} uploaded</dd></div>
-            <div><dt className="font-semibold">Floor plan</dt><dd>{draft.floorPlanKey ? "Uploaded with zone overlay" : "Optional not uploaded"}</dd></div>
-            <div><dt className="font-semibold">Rent</dt><dd>S${draft.monthlyRent || "—"} · {draft.leaseMonths} months · {draft.furnishing || "—"}</dd></div>
-          </dl>
-          {missingFields.length > 0 ? (
-            <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-800">
-              <p className="font-bold">Missing fields</p>
-              <ul className="mt-2 list-disc pl-5">
-                {missingFields.map((field) => <li key={field}>{field}</li>)}
-              </ul>
-            </div>
-          ) : null}
-          {errors.publish ? <p role="alert" className="mt-4 text-sm font-semibold text-red-700">{errors.publish}</p> : null}
-          <button
-            data-testid="wizard-publish"
-            type="button"
-            disabled={isBusy || missingFields.length > 0}
-            onClick={() => void publish()}
-            className="mt-6 rounded-full bg-proppy-primary px-6 py-3 font-bold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isEdit && draft.status === "published" ? "Save changes" : isBusy ? "Publishing…" : "Publish"}
-          </button>
-        </section>
+        <ListingWizardReview
+          draft={draft}
+          errors={errors}
+          isBusy={isBusy}
+          isEdit={isEdit}
+          missingFields={missingFields}
+          onPublish={() => void publish()}
+        />
       ) : null}
 
       <div className="mt-8 flex items-center justify-between">
