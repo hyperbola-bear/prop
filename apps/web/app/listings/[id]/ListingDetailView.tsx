@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { ListingDetail } from "../../../../../packages/shared/src/types";
+import { EnquiryButton } from "../../../components/messaging/EnquiryButton";
+import { ReportDialog } from "../../../components/report/ReportDialog";
 import {
   bedroomsForFlatType,
   formatAvailableDate,
@@ -130,6 +132,15 @@ export function ListingDetailView({ id }: { id: string }) {
               </dd>
             </div>
           </dl>
+          <div className="mt-6 flex flex-wrap gap-3 border-t border-slate-100 pt-5">
+            <EnquiryButton listingId={listing.id} />
+            <ReportDialog
+              targetType="listing"
+              targetId={listing.id}
+              buttonLabel="Report"
+              buttonTestId="report-button"
+            />
+          </div>
         </aside>
       </div>
 

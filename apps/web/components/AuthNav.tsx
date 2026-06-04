@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type AuthNavProps = {
   user: { email: string } | null;
@@ -8,6 +8,29 @@ type AuthNavProps = {
 
 export function AuthNav({ user }: AuthNavProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+
+    let cancelled = false;
+    async function loadUnreadCount() {
+      const response = await fetch("/api/me/unread-count", { cache: "no-store" });
+      if (!response.ok) return;
+      const body = (await response.json()) as { count: number };
+      if (!cancelled) {
+        setUnreadCount(body.count);
+      }
+    }
+
+    void loadUnreadCount();
+    const timer = window.setInterval(loadUnreadCount, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user]);
 
   async function signOut() {
     setIsSigningOut(true);
@@ -35,6 +58,20 @@ export function AuthNav({ user }: AuthNavProps) {
         className="text-sm font-semibold text-slate-700 hover:text-proppy-primary"
       >
         Favorites
+      </a>
+      <a
+        data-testid="nav-messages"
+        href="/messages"
+        className="relative text-sm font-semibold text-slate-700 hover:text-proppy-primary"
+      >
+        Messages
+        {unreadCount > 0 ? (
+          <span className="ml-2 rounded-full bg-rose-600 px-2 py-0.5 text-xs font-bold text-white">
+            {unreadCount}
+          </span>
+        ) : (
+          <span className="sr-only">0 unread</span>
+        )}
       </a>
       <a
         href="/dashboard/listings"
