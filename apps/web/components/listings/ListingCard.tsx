@@ -17,6 +17,7 @@ export function ListingCard({ listing, initialFavorited = false }: ListingCardPr
     <article
       data-testid="listing-card"
       data-published-at={listing.published_at ?? ""}
+      data-refreshed-at={listing.refreshed_at ?? ""}
       className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
     >
       <div className="relative">

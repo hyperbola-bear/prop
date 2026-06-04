@@ -35,9 +35,9 @@ import { presignPhotoGetUrl } from "./storage";
 type CursorPayload = {
   sort?: "newest" | "price_asc" | "price_desc" | "refreshed";
   id: string;
-  publishedAt?: string | undefined;
+  publishedAt?: string | null | undefined;
   priceSgd?: string | undefined;
-  refreshedAt?: string | undefined;
+  refreshedAt?: string | null | undefined;
 };
 
 class InvalidCursorError extends Error {
@@ -61,10 +61,10 @@ function decodeCursor(cursor: string | null): CursorPayload | null {
     if (!parsed.id) {
       throw new InvalidCursorError();
     }
-    if (parsed.publishedAt && Number.isNaN(Date.parse(parsed.publishedAt))) {
+    if (typeof parsed.publishedAt === "string" && Number.isNaN(Date.parse(parsed.publishedAt))) {
       throw new InvalidCursorError();
     }
-    if (parsed.refreshedAt && Number.isNaN(Date.parse(parsed.refreshedAt))) {
+    if (typeof parsed.refreshedAt === "string" && Number.isNaN(Date.parse(parsed.refreshedAt))) {
       throw new InvalidCursorError();
     }
     return {
@@ -106,15 +106,35 @@ function cursorCondition(cursor: string | null, sort: ListingSort): SQL | undefi
   }
 
   if (sort === "refreshed") {
-    if (!decodedCursor.refreshedAt) {
+    if (decodedCursor.refreshedAt === undefined || !decodedCursor.publishedAt) {
       throw new InvalidCursorError();
     }
-    const refreshedAt = new Date(decodedCursor.refreshedAt);
+    const publishedAt = decodedCursor.publishedAt;
+    if (decodedCursor.refreshedAt === null) {
+      return sql`(
+        ${listings.refreshedAt} is null
+        and (
+          ${listings.publishedAt} < ${publishedAt}::timestamptz
+          or (
+            ${listings.publishedAt} = ${publishedAt}::timestamptz
+            and ${listings.id} < ${decodedCursor.id}
+          )
+        )
+      )`;
+    }
+    const refreshedAt = decodedCursor.refreshedAt;
     return sql`(
-      coalesce(${listings.refreshedAt}, ${listings.publishedAt}) < ${refreshedAt}
+      ${listings.refreshedAt} is null
+      or ${listings.refreshedAt} < ${refreshedAt}::timestamptz
       or (
-        coalesce(${listings.refreshedAt}, ${listings.publishedAt}) = ${refreshedAt}
-        and ${listings.id} < ${decodedCursor.id}
+        ${listings.refreshedAt} = ${refreshedAt}::timestamptz
+        and (
+          ${listings.publishedAt} < ${publishedAt}::timestamptz
+          or (
+            ${listings.publishedAt} = ${publishedAt}::timestamptz
+            and ${listings.id} < ${decodedCursor.id}
+          )
+        )
       )
     )`;
   }
@@ -162,7 +182,7 @@ type PublicListingOptions = {
 };
 
 function mrtPattern(nearMrt: string): string {
-  return `%${nearMrt.trim()}%`;
+  return nearMrt.trim();
 }
 
 function radiusMetres(radiusKm: number | undefined): number {
@@ -174,11 +194,24 @@ function distanceToMrtSelect(options: PublicListingOptions) {
     return sql<number | null>`null`;
   }
   const pattern = mrtPattern(options.near_mrt);
+  const radiusM = radiusMetres(options.radius_km);
   return sql<number | null>`(
-    select round(min(ST_Distance(${addresses.location}::geography, mrt.geom::geography)))::int
+    select round(min(ST_Distance(
+      ${addresses.location}::geography,
+      ST_SetSRID(ST_MakePoint(ST_X(mrt.geom), ST_Y(mrt.geom)), 4326)::geography
+    )))::int
     from external.onemap_amenities mrt
     where mrt.amenity_type = 'MRT'
       and mrt.name ilike ${pattern}
+      and ST_DWithin(
+        ${addresses.location}::geography,
+        ST_SetSRID(ST_MakePoint(ST_X(mrt.geom), ST_Y(mrt.geom)), 4326)::geography,
+        ${radiusM}
+      )
+      and ST_Distance(
+        ${addresses.location}::geography,
+        ST_SetSRID(ST_MakePoint(ST_X(mrt.geom), ST_Y(mrt.geom)), 4326)::geography
+      ) <= ${radiusM}
   )`;
 }
 
@@ -190,7 +223,11 @@ function orderByForSort(sort: ListingSort): SQL[] {
     return [desc(listings.priceSgd), desc(listings.id)];
   }
   if (sort === "refreshed") {
-    return [sql`coalesce(${listings.refreshedAt}, ${listings.publishedAt}) desc`, desc(listings.id)];
+    return [
+      sql`${listings.refreshedAt} desc nulls last`,
+      sql`${listings.publishedAt} desc nulls last`,
+      desc(listings.id)
+    ];
   }
   return [desc(listings.publishedAt), desc(listings.id)];
 }
@@ -298,8 +335,14 @@ function cursorForRow(row: ListingRow, sort: ListingSort): string | null {
     return encodeCursor({ sort, id: row.id, priceSgd: row.priceSgd.toString() });
   }
   if (sort === "refreshed") {
-    const refreshedAt = row.refreshedAt ?? row.publishedAt;
-    return refreshedAt ? encodeCursor({ sort, id: row.id, refreshedAt: refreshedAt.toISOString() }) : null;
+    return row.publishedAt
+      ? encodeCursor({
+          sort,
+          id: row.id,
+          refreshedAt: row.refreshedAt?.toISOString() ?? null,
+          publishedAt: row.publishedAt.toISOString()
+        })
+      : null;
   }
   return row.publishedAt
     ? encodeCursor({ sort, id: row.id, publishedAt: row.publishedAt.toISOString() })

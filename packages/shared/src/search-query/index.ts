@@ -63,7 +63,7 @@ export function toEnglishTsQuery(q: string): string | null {
 }
 
 export function mrtPattern(nearMrt: string): string {
-  return `%${nearMrt.trim()}%`;
+  return nearMrt.trim();
 }
 
 export function radiusMetres(radiusKm: number | undefined): number {
@@ -127,7 +127,15 @@ export function buildPublicListingConditions(options: ListingSearchFilters): SQL
       from external.onemap_amenities mrt
       where mrt.amenity_type = 'MRT'
         and mrt.name ilike ${pattern}
-        and ST_DWithin(${addresses.location}::geography, mrt.geom::geography, ${radiusM})
+        and ST_DWithin(
+          ${addresses.location}::geography,
+          ST_SetSRID(ST_MakePoint(ST_X(mrt.geom), ST_Y(mrt.geom)), 4326)::geography,
+          ${radiusM}
+        )
+        and ST_Distance(
+          ${addresses.location}::geography,
+          ST_SetSRID(ST_MakePoint(ST_X(mrt.geom), ST_Y(mrt.geom)), 4326)::geography
+        ) <= ${radiusM}
     )`);
   }
 
