@@ -35,6 +35,13 @@ export function AuthNav() {
       </Pressable>
       <Pressable
         accessibilityRole="button"
+        onPress={() => router.push("/favorites" as Href)}
+        testID="nav-favorites"
+      >
+        <Text style={styles.profileText}>Favorites</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
         onPress={() => router.push("/profile" as Href)}
         testID="nav-profile"
       >
