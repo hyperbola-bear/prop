@@ -5,13 +5,9 @@ import {
   desc,
   eq,
   gt,
-  gte,
-  ilike,
   inArray,
-  isNotNull,
   isNull,
   lt,
-  lte,
   or,
   sql,
   type SQL
@@ -32,10 +28,9 @@ import type {
   ListingsResponse,
   ListingSummary
 } from "../../../packages/shared/src/types";
+import { buildPublicListingConditions } from "../../../packages/shared/src/search-query";
 import { db } from "./db";
 import { presignPhotoGetUrl } from "./storage";
-
-const PUBLIC_LISTING_STATUSES = ["published", "active"] as const;
 
 type CursorPayload = {
   sort?: "newest" | "price_asc" | "price_desc" | "refreshed";
@@ -130,65 +125,7 @@ function cursorCondition(cursor: string | null, sort: ListingSort): SQL | undefi
 }
 
 function publicListingConditions(options: PublicListingOptions): SQL[] {
-  const conditions: SQL[] = [
-    isNull(listings.deletedAt),
-    isNotNull(listings.publishedAt),
-    inArray(listings.status, [...PUBLIC_LISTING_STATUSES])
-  ];
-
-  if (options.town) {
-    conditions.push(eq(addresses.town, options.town.toUpperCase()));
-  }
-  if (options.flat_type) {
-    conditions.push(eq(listingHdb.flatType, options.flat_type));
-  }
-  if (options.bedrooms !== undefined) {
-    const flatTypes = flatTypesForBedrooms(options.bedrooms);
-    const bedroomConditions: SQL[] = [eq(listings.bedrooms, options.bedrooms)];
-    if (flatTypes.length > 0) {
-      bedroomConditions.push(inArray(listingHdb.flatType, flatTypes));
-    }
-    const bedroomCondition = or(...bedroomConditions);
-    if (bedroomCondition) {
-      conditions.push(bedroomCondition);
-    }
-  }
-  if (options.price_min !== undefined) {
-    conditions.push(gte(listings.priceSgd, BigInt(options.price_min)));
-  }
-  if (options.price_max !== undefined) {
-    conditions.push(lte(listings.priceSgd, BigInt(options.price_max)));
-  }
-  if (options.lease_min_months !== undefined) {
-    conditions.push(gte(listingRental.leaseMonths, options.lease_min_months));
-  }
-  if (options.available_from) {
-    conditions.push(gte(listingRental.availableFrom, options.available_from));
-  }
-  if (options.furnishing) {
-    conditions.push(eq(listingRental.furnishing, options.furnishing));
-  }
-  if (options.room_only !== undefined) {
-    conditions.push(eq(listingRental.roomOnly, options.room_only));
-  }
-  if (options.q) {
-    const tsQuery = toEnglishTsQuery(options.q);
-    if (tsQuery) {
-      conditions.push(sql`${listings.searchVector} @@ to_tsquery('english', ${tsQuery})`);
-    }
-  }
-  if (options.near_mrt) {
-    const pattern = mrtPattern(options.near_mrt);
-    const radiusM = radiusMetres(options.radius_km);
-    conditions.push(sql`${addresses.location} is not null`);
-    conditions.push(sql`exists (
-      select 1
-      from external.onemap_amenities mrt
-      where mrt.amenity_type = 'MRT'
-        and mrt.name ilike ${pattern}
-        and ST_DWithin(${addresses.location}::geography, mrt.geom::geography, ${radiusM})
-    )`);
-  }
+  const conditions = buildPublicListingConditions(options);
 
   const cursorSql = cursorCondition(options.cursor, options.sort);
   if (cursorSql) {
@@ -218,34 +155,6 @@ type PublicListingOptions = {
   limit: number;
   cursor: string | null;
 };
-
-function flatTypesForBedrooms(bedrooms: number): string[] {
-  if (bedrooms <= 1) {
-    return ["1-room", "2-room"];
-  }
-  if (bedrooms === 2) {
-    return ["3-room"];
-  }
-  if (bedrooms === 3) {
-    return ["4-room", "5-room"];
-  }
-  if (bedrooms === 4) {
-    return ["Executive"];
-  }
-  return [];
-}
-
-function toEnglishTsQuery(q: string): string | null {
-  const terms = q
-    .toLowerCase()
-    .match(/[a-z0-9]+/g)
-    ?.filter((term) => term.length > 0)
-    .slice(0, 8);
-  if (!terms || terms.length === 0) {
-    return null;
-  }
-  return terms.join(" | ");
-}
 
 function mrtPattern(nearMrt: string): string {
   return `%${nearMrt.trim()}%`;

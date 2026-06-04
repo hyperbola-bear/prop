@@ -41,6 +41,10 @@
     "./ssrf-guard": {
       "types": "./dist/ssrf-guard/index.d.ts",
       "default": "./dist/ssrf-guard/index.js"
+    },
+    "./search-query": {
+      "types": "./dist/search-query/index.d.ts",
+      "default": "./dist/search-query/index.js"
     }
   },
   "scripts": {
