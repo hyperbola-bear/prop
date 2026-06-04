@@ -3,6 +3,8 @@ import { useLocalSearchParams } from "expo-router";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { EnquiryButton } from "../../components/messaging/EnquiryButton";
+import { ReportDialog } from "../../components/report/ReportDialog";
 import { mobileApiClient } from "../../lib/api";
 import {
   bedroomsForFlatType,
@@ -118,6 +120,10 @@ export default function ListingDetailScreen() {
             >
               {formatAvailableDate(listing.available_from)}
             </DetailRow>
+          </View>
+          <View style={styles.actions}>
+            <EnquiryButton listingId={listing.id} />
+            <ReportDialog targetId={listing.id} targetType="listing" />
           </View>
         </View>
       </View>
@@ -251,6 +257,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 16
+  },
+  actions: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 20
   },
   galleryImage: {
     backgroundColor: "#ccfbf1",

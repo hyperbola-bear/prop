@@ -23,6 +23,11 @@ import type {
   SignupInput
 } from "../schemas/auth";
 import type {
+  CreateConversationMessageInput,
+  CreateEnquiryInput,
+  CreateReportInput
+} from "../schemas/messaging";
+import type {
   ListingDetail,
   ListingsResponse,
   OwnedListingDetail,
@@ -94,6 +99,44 @@ const meResponseSchema = z.object({
 });
 const rolesResponseSchema = z.object({ roles: z.array(z.string()) });
 const okResponseSchema = z.object({ ok: z.boolean() });
+const unreadCountResponseSchema = z.object({ count: z.number().int().nonnegative() });
+const createEnquiryResponseSchema = z.object({
+  conversationId: z.uuid(),
+  messageId: z.uuid(),
+  enquiryId: z.uuid()
+});
+const chatMessageSchema = z.object({
+  id: z.uuid(),
+  conversationId: z.uuid(),
+  senderUserId: z.uuid(),
+  body: z.string(),
+  scam_flags: z.array(z.string()),
+  scam_score: z.number().int(),
+  created_at: z.string().nullable(),
+  read_at: z.string().nullable()
+});
+const conversationSummarySchema = z.object({
+  id: z.uuid(),
+  listingId: z.uuid(),
+  buyerUserId: z.uuid(),
+  sellerUserId: z.uuid(),
+  last_message_at: z.string().nullable(),
+  unread_count: z.number().int().nonnegative(),
+  created_at: z.string().nullable()
+});
+const conversationDetailSchema = conversationSummarySchema.extend({
+  messages: z.array(chatMessageSchema)
+});
+const conversationsResponseSchema = z.object({
+  items: z.array(conversationSummarySchema)
+});
+const markConversationReadResponseSchema = z.object({
+  updated: z.number().int().nonnegative()
+});
+const createReportResponseSchema = z.object({
+  id: z.uuid(),
+  status: z.string().min(1)
+});
 const sellerClientSchema = z.object({
   id: z.uuid(),
   email: z.string().email(),
@@ -175,6 +218,9 @@ export type OnemapSuggestion = z.infer<typeof onemapSuggestionSchema>;
 
 export type AuthenticatedUser = z.infer<typeof meResponseSchema>;
 export type SellerClient = z.infer<typeof sellerClientSchema>;
+export type ChatMessage = z.infer<typeof chatMessageSchema>;
+export type ConversationSummary = z.infer<typeof conversationSummarySchema>;
+export type ConversationDetail = z.infer<typeof conversationDetailSchema>;
 
 async function request<T>(
   fetcher: Fetcher,
@@ -485,6 +531,55 @@ export function createApiClient(options: ApiClientOptions = {}) {
         );
       }
     },
+    enquiries: {
+      create(input: CreateEnquiryInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/enquiries"),
+          createEnquiryResponseSchema,
+          jsonPost(input),
+          getToken
+        );
+      }
+    },
+    conversations: {
+      list() {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/conversations"),
+          conversationsResponseSchema,
+          {},
+          getToken
+        );
+      },
+      get(id: string): Promise<ConversationDetail> {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/conversations/${encodeURIComponent(id)}`),
+          conversationDetailSchema,
+          {},
+          getToken
+        );
+      },
+      sendMessage(id: string, input: CreateConversationMessageInput): Promise<ChatMessage> {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/conversations/${encodeURIComponent(id)}/messages`),
+          chatMessageSchema,
+          jsonPost(input),
+          getToken
+        );
+      },
+      markRead(id: string) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/conversations/${encodeURIComponent(id)}/read`),
+          markConversationReadResponseSchema,
+          { method: "PATCH" },
+          getToken
+        );
+      }
+    },
     savedSearches: {
       list(): Promise<SavedSearchesResponse> {
         return request(
@@ -571,6 +666,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
           {},
           getToken
         );
+      },
+      unreadCount() {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/me/unread-count"),
+          unreadCountResponseSchema,
+          {},
+          getToken
+        );
       }
     },
     uploads: {
@@ -603,6 +707,17 @@ export function createApiClient(options: ApiClientOptions = {}) {
           apiUrl(baseUrl, "/api/onemap/search", params),
           onemapSuggestionsSchema,
           {},
+          getToken
+        );
+      }
+    },
+    reports: {
+      create(input: CreateReportInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/reports"),
+          createReportResponseSchema,
+          jsonPost(input),
           getToken
         );
       }
