@@ -121,6 +121,89 @@ describe("GET /api/listings", () => {
       "http://localhost:3101"
     );
   });
+
+  it("ANDs town and flat type filters", async () => {
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3100/api/listings?town=TAMPINES&flat_type=4-room&limit=10"
+      )
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as ListingsResponse;
+    expect(body.items.length).toBeGreaterThan(0);
+    for (const item of body.items) {
+      expect(item.address.town).toBe("TAMPINES");
+      expect(item.flat_type).toBe("4-room");
+    }
+  });
+
+  it("filters by Postgres full-text search", async () => {
+    const response = await GET(
+      new NextRequest("http://localhost:3100/api/listings?q=balcony&limit=10")
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as ListingsResponse;
+    expect(body.items.length).toBeGreaterThan(0);
+    expect(
+      body.items.every((item) =>
+        `${item.title} ${item.description ?? ""}`.toLowerCase().includes("balcony")
+      )
+    ).toBe(true);
+  });
+
+  it("returns only listings inside an MRT radius and includes distance", async () => {
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3100/api/listings?near_mrt=Tampines&radius_km=1&limit=10"
+      )
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as ListingsResponse;
+    expect(body.items.length).toBeGreaterThan(0);
+    for (const item of body.items) {
+      expect(item.distance_to_mrt_m).toBeGreaterThanOrEqual(0);
+      expect(item.distance_to_mrt_m).toBeLessThanOrEqual(1000);
+    }
+  });
+
+  it("sorts by price ascending with no pagination gaps or overlap", async () => {
+    const firstPageResponse = await GET(
+      new NextRequest("http://localhost:3100/api/listings?sort=price_asc&limit=4")
+    );
+    expect(firstPageResponse.status).toBe(200);
+    const firstPage = (await firstPageResponse.json()) as ListingsResponse;
+    expect(firstPage.items).toHaveLength(4);
+    expect(typeof firstPage.cursor).toBe("string");
+
+    const secondPageResponse = await GET(
+      new NextRequest(
+        `http://localhost:3100/api/listings?sort=price_asc&limit=4&cursor=${encodeURIComponent(
+          firstPage.cursor ?? ""
+        )}`
+      )
+    );
+    expect(secondPageResponse.status).toBe(200);
+    const secondPage = (await secondPageResponse.json()) as ListingsResponse;
+    expect(secondPage.items).toHaveLength(4);
+
+    const combined = [...firstPage.items, ...secondPage.items];
+    expect(new Set(combined.map((item) => item.id)).size).toBe(combined.length);
+    expect(combined.map((item) => item.price_sgd)).toEqual(
+      [...combined.map((item) => item.price_sgd)].sort((a, b) => a - b)
+    );
+
+    const canonicalResponse = await GET(
+      new NextRequest("http://localhost:3100/api/listings?sort=price_asc&limit=8")
+    );
+    expect(canonicalResponse.status).toBe(200);
+    const canonicalPage = (await canonicalResponse.json()) as ListingsResponse;
+    expect(canonicalPage.items.map((item) => item.id)).toEqual(
+      combined.map((item) => item.id)
+    );
+  });
 });
 
 describe("POST /api/listings", () => {

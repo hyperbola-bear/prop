@@ -1,6 +1,8 @@
 import { z } from "zod";
 import {
   addListingPhotoSchema,
+  createSavedSearchSchema,
+  favoritesResponseSchema,
   createListingSchema,
   listingDetailSchema,
   listingsResponseSchema,
@@ -9,6 +11,8 @@ import {
   patchListingSchema,
   presignUploadSchema,
   reorderListingPhotosSchema,
+  savedSearchSchema,
+  savedSearchesResponseSchema,
   updateListingPhotoRoomTagSchema
 } from "../schemas/listings";
 import type {
@@ -20,7 +24,9 @@ import type {
 import type {
   ListingDetail,
   ListingsResponse,
-  OwnedListingDetail
+  OwnedListingDetail,
+  SavedSearch,
+  SavedSearchesResponse
 } from "../types/listings";
 
 type Fetcher = typeof fetch;
@@ -32,6 +38,20 @@ export type ApiClientOptions = {
 };
 
 export type ListListingsOptions = {
+  town?: string;
+  flat_type?: "1-room" | "2-room" | "3-room" | "4-room" | "5-room" | "Executive";
+  bedrooms?: number;
+  price_min?: number;
+  price_max?: number;
+  lease_min_months?: number;
+  available_from?: string;
+  furnishing?: "Unfurnished" | "Partial" | "Fully";
+  room_only?: boolean;
+  q?: string;
+  sort?: "newest" | "price_asc" | "price_desc" | "refreshed";
+  near_mrt?: string;
+  radius_km?: number;
+  view?: "grid" | "map";
   limit?: number;
   cursor?: string | null;
 };
@@ -143,6 +163,7 @@ const onemapSuggestionsSchema = z.array(onemapSuggestionSchema);
 
 export type CreateListingInput = z.input<typeof createListingSchema>;
 export type PatchListingInput = z.input<typeof patchListingSchema>;
+export type CreateSavedSearchInput = z.input<typeof createSavedSearchSchema>;
 export type PresignUploadInput = z.input<typeof presignUploadSchema>;
 export type AddListingPhotoInput = z.input<typeof addListingPhotoSchema>;
 export type ReorderListingPhotosInput = z.infer<typeof reorderListingPhotosSchema>;
@@ -195,6 +216,46 @@ async function request<T>(
   }
 
   return schema.parse(await response.json());
+}
+
+async function requestNoContent(
+  fetcher: Fetcher,
+  url: string,
+  init: RequestInit = {},
+  getToken?: ApiClientOptions["getToken"]
+): Promise<void> {
+  const headers = new Headers(init.headers);
+  headers.set("accept", "application/json");
+  const token = getToken ? await getToken() : null;
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetcher(url, { ...init, headers });
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => null);
+    const errorPayload =
+      typeof payload === "object" &&
+      payload !== null &&
+      "error" in payload &&
+      typeof payload.error === "object" &&
+      payload.error !== null
+        ? payload.error
+        : null;
+    const message =
+      errorPayload &&
+      "message" in errorPayload &&
+      typeof errorPayload.message === "string"
+        ? errorPayload.message
+        : `API request failed with HTTP ${response.status}: ${url}`;
+    const code =
+      errorPayload &&
+      "code" in errorPayload &&
+      typeof errorPayload.code === "string"
+        ? errorPayload.code
+        : undefined;
+    throw new ApiClientError(message, response.status, code);
+  }
 }
 
 function jsonPost(body: unknown): RequestInit {
@@ -275,8 +336,11 @@ export function createApiClient(options: ApiClientOptions = {}) {
     listings: {
       list(input: ListListingsOptions = {}): Promise<ListingsResponse> {
         const params = new URLSearchParams();
-        if (input.limit !== undefined) {
-          params.set("limit", String(input.limit));
+        for (const [key, value] of Object.entries(input)) {
+          if (value === undefined || value === null) {
+            continue;
+          }
+          params.set(key, String(value));
         }
         if (input.cursor) {
           params.set("cursor", input.cursor);
@@ -400,6 +464,51 @@ export function createApiClient(options: ApiClientOptions = {}) {
           { method: "POST" },
           getToken
         );
+      },
+      favorite(id: string) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/favorite`),
+          okResponseSchema,
+          { method: "POST" },
+          getToken
+        );
+      },
+      unfavorite(id: string) {
+        return requestNoContent(
+          fetcher,
+          apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/favorite`),
+          { method: "DELETE" },
+          getToken
+        );
+      }
+    },
+    savedSearches: {
+      list(): Promise<SavedSearchesResponse> {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/saved-searches"),
+          savedSearchesResponseSchema,
+          {},
+          getToken
+        );
+      },
+      create(input: CreateSavedSearchInput): Promise<SavedSearch> {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/saved-searches"),
+          savedSearchSchema,
+          jsonPost(input),
+          getToken
+        );
+      },
+      delete(id: string) {
+        return requestNoContent(
+          fetcher,
+          apiUrl(baseUrl, `/api/saved-searches/${encodeURIComponent(id)}`),
+          { method: "DELETE" },
+          getToken
+        );
       }
     },
     me: {
@@ -440,6 +549,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
           apiUrl(baseUrl, "/api/me/clients"),
           sellerClientSchema,
           jsonPost(input),
+          getToken
+        );
+      },
+      favorites() {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/me/favorites"),
+          favoritesResponseSchema,
+          {},
           getToken
         );
       }

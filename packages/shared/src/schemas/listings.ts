@@ -15,15 +15,22 @@ export const listingPhotoSchema = z.object({
 export const listingSummarySchema = z.object({
   id: z.uuid(),
   title: z.string().min(1),
+  description: z.string().nullable().optional(),
   price_sgd: z.number().int().nonnegative(),
   address: listingAddressSchema,
   photos: z.array(listingPhotoSchema),
   listing_type: z.string().min(1),
   property_type: z.string().min(1),
   flat_type: z.string().min(1),
+  bedrooms: z.number().int().nonnegative().nullable().optional(),
   floor_area_sqft: z.number().int().positive(),
   lease_months: z.number().int().positive(),
-  available_from: z.string().min(1)
+  available_from: z.string().min(1),
+  furnishing: z.string().min(1).optional(),
+  room_only: z.boolean().optional(),
+  published_at: z.string().nullable().optional(),
+  refreshed_at: z.string().nullable().optional(),
+  distance_to_mrt_m: z.number().nonnegative().nullable().optional()
 });
 
 export const agentOrLandlordSchema = z.object({
@@ -41,6 +48,40 @@ export const listingDetailSchema = listingSummarySchema.extend({
 
 export const listingsQuerySchema = z
   .object({
+    town: z.string().trim().min(1).max(80).optional(),
+    flat_type: z
+      .enum(["1-room", "2-room", "3-room", "4-room", "5-room", "Executive"])
+      .optional(),
+    bedrooms: z
+      .string()
+      .regex(/^[0-9]+$/, "bedrooms must be a non-negative integer")
+      .optional(),
+    price_min: z
+      .string()
+      .regex(/^[0-9]+$/, "price_min must be a non-negative whole SGD amount")
+      .optional(),
+    price_max: z
+      .string()
+      .regex(/^[0-9]+$/, "price_max must be a non-negative whole SGD amount")
+      .optional(),
+    lease_min_months: z
+      .string()
+      .regex(/^[0-9]+$/, "lease_min_months must be a positive integer")
+      .optional(),
+    available_from: z
+      .string()
+      .regex(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/, "available_from must be YYYY-MM-DD")
+      .optional(),
+    furnishing: z.enum(["Unfurnished", "Partial", "Fully"]).optional(),
+    room_only: z.enum(["true", "false"]).optional(),
+    q: z.string().trim().min(1).max(200).optional(),
+    sort: z.enum(["newest", "price_asc", "price_desc", "refreshed"]).optional(),
+    near_mrt: z.string().trim().min(1).max(120).optional(),
+    radius_km: z
+      .string()
+      .regex(/^[0-9]+(?:\.[0-9]+)?$/, "radius_km must be a positive number")
+      .optional(),
+    view: z.enum(["grid", "map"]).optional(),
     limit: z
       .string()
       .regex(/^[0-9]+$/, "limit must be a positive integer")
@@ -49,7 +90,24 @@ export const listingsQuerySchema = z
   })
   .transform((value) => {
     const limit = Number(value.limit ?? "20");
+    const priceMin = value.price_min ? Number(value.price_min) * 100 : undefined;
+    const priceMax = value.price_max ? Number(value.price_max) * 100 : undefined;
+    const radiusKm = value.radius_km ? Number(value.radius_km) : undefined;
     return {
+      town: value.town,
+      flat_type: value.flat_type,
+      bedrooms: value.bedrooms ? Number(value.bedrooms) : undefined,
+      price_min: priceMin,
+      price_max: priceMax,
+      lease_min_months: value.lease_min_months ? Number(value.lease_min_months) : undefined,
+      available_from: value.available_from,
+      furnishing: value.furnishing,
+      room_only: value.room_only ? value.room_only === "true" : undefined,
+      q: value.q,
+      sort: value.sort ?? "newest",
+      near_mrt: value.near_mrt,
+      radius_km: radiusKm,
+      view: value.view ?? "grid",
       limit: Math.min(limit, 50),
       cursor: value.cursor ?? null
     };
@@ -57,11 +115,79 @@ export const listingsQuerySchema = z
   .refine((value) => value.limit >= 1, {
     message: "limit must be at least 1",
     path: ["limit"]
+  })
+  .refine((value) => value.price_min === undefined || value.price_max === undefined || value.price_min <= value.price_max, {
+    message: "price_min must be less than or equal to price_max",
+    path: ["price_min"]
+  })
+  .refine((value) => value.radius_km === undefined || value.radius_km > 0, {
+    message: "radius_km must be greater than 0",
+    path: ["radius_km"]
   });
 
 export const listingsResponseSchema = z.object({
   items: z.array(listingSummarySchema),
   cursor: z.string().nullable()
+});
+
+const savedSearchQueryValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+
+export const savedSearchQuerySchema = z
+  .object({
+    town: z.string().trim().min(1).max(80).optional(),
+    flat_type: z
+      .enum(["1-room", "2-room", "3-room", "4-room", "5-room", "Executive"])
+      .optional(),
+    bedrooms: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+    price_min: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+    price_max: z.union([z.number().int().nonnegative(), z.string()]).optional(),
+    lease_min_months: z.union([z.number().int().positive(), z.string()]).optional(),
+    available_from: z.string().optional(),
+    furnishing: z.enum(["Unfurnished", "Partial", "Fully"]).optional(),
+    room_only: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
+    q: z.string().trim().min(1).max(200).optional(),
+    sort: z.enum(["newest", "price_asc", "price_desc", "refreshed"]).optional(),
+    near_mrt: z.string().trim().min(1).max(120).optional(),
+    radius_km: z.union([z.number().positive(), z.string()]).optional(),
+    view: z.enum(["grid", "map"]).optional(),
+    limit: z.union([z.number().int().positive(), z.string()]).optional(),
+    cursor: z.string().optional()
+  })
+  .strict()
+  .refine((query) => Object.keys(query).length > 0, {
+    message: "query must contain at least one supported filter"
+  });
+
+export const createSavedSearchSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    query: savedSearchQuerySchema,
+    notify_email: z.boolean().optional(),
+    notifyEmail: z.boolean().optional()
+  })
+  .transform((value) => ({
+    name: value.name,
+    query: value.query as Record<string, z.infer<typeof savedSearchQueryValueSchema>>,
+    notifyEmail: value.notifyEmail ?? value.notify_email ?? true
+  }));
+
+export const savedSearchSchema = z.object({
+  id: z.uuid(),
+  user_id: z.uuid(),
+  name: z.string().min(1),
+  query: z.record(z.string(), savedSearchQueryValueSchema),
+  notify_email: z.boolean(),
+  created_at: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+  last_run_at: z.string().nullable().optional()
+});
+
+export const savedSearchesResponseSchema = z.object({
+  items: z.array(savedSearchSchema)
+});
+
+export const favoritesResponseSchema = z.object({
+  items: z.array(listingSummarySchema)
 });
 
 export const ownedListingSchema = z.object({
