@@ -35,6 +35,7 @@ type UploadFile = {
   blob: Blob;
   localUrl: string;
   name: string;
+  size: number;
   type: "image/jpeg" | "image/png" | "image/webp";
 };
 
@@ -52,6 +53,31 @@ function stepParam(value: string | string[] | undefined): number {
 
 function normalizeImageType(type: string | undefined | null): UploadFile["type"] {
   return type === "image/png" || type === "image/webp" ? type : "image/jpeg";
+}
+
+async function uploadToPresignedUrl(
+  presign: {
+    fields: Record<string, string>;
+    headers?: Record<string, string>;
+    method?: "POST" | "PUT";
+    url: string;
+  },
+  file: UploadFile
+): Promise<Response> {
+  if (presign.method === "POST") {
+    const form = new FormData();
+    for (const [field, value] of Object.entries(presign.fields)) {
+      form.append(field, value);
+    }
+    form.append("file", file.blob, file.name);
+    return fetch(presign.url, { body: form, method: "POST" });
+  }
+
+  return fetch(presign.url, {
+    body: file.blob,
+    headers: presign.headers ?? { "Content-Type": file.type },
+    method: "PUT"
+  });
 }
 
 export default function ListingWizardScreen() {
@@ -234,14 +260,11 @@ export default function ListingWizardScreen() {
       for (const file of files) {
         const presign = await mobileApiClient.uploads.presign({
           contentType: file.type,
+          fileSize: file.size,
           listingId: id,
           scope: "listing-photo"
         });
-        const put = await fetch(presign.url, {
-          body: file.blob,
-          headers: presign.headers ?? { "Content-Type": file.type },
-          method: "PUT"
-        });
+        const put = await uploadToPresignedUrl(presign, file);
         if (!put.ok) {
           throw new Error(`Upload failed (${put.status})`);
         }
@@ -274,14 +297,11 @@ export default function ListingWizardScreen() {
       const id = await ensureDraft();
       const presign = await mobileApiClient.uploads.presign({
         contentType: file.type,
+        fileSize: file.size,
         listingId: id,
         scope: "listing-floor-plan"
       });
-      const put = await fetch(presign.url, {
-        body: file.blob,
-        headers: presign.headers ?? { "Content-Type": file.type },
-        method: "PUT"
-      });
+      const put = await uploadToPresignedUrl(presign, file);
       if (!put.ok) {
         throw new Error(`Floor plan upload failed (${put.status})`);
       }
@@ -924,6 +944,7 @@ function FilePicker({
           blob,
           localUrl: asset.uri,
           name: asset.fileName ?? `listing-photo-${index + 1}.jpg`,
+          size: blob.size,
           type: normalizeImageType(asset.mimeType)
         };
       })
@@ -947,6 +968,7 @@ function FilePicker({
                   blob: file,
                   localUrl: URL.createObjectURL(file),
                   name: file.name,
+                  size: file.size,
                   type: normalizeImageType(file.type)
                 }))
               );

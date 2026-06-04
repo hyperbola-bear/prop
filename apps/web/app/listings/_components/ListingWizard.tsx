@@ -148,6 +148,35 @@ async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return payload;
 }
 
+type PresignUploadResponse = {
+  fields: Record<string, string>;
+  headers?: Record<string, string>;
+  key: string;
+  method?: "POST" | "PUT";
+  url: string;
+};
+
+async function uploadToPresignedUrl(
+  presign: PresignUploadResponse,
+  file: File,
+  contentType: string
+): Promise<Response> {
+  if (presign.method === "POST") {
+    const form = new FormData();
+    for (const [field, value] of Object.entries(presign.fields)) {
+      form.append(field, value);
+    }
+    form.append("file", file);
+    return fetch(presign.url, { method: "POST", body: form });
+  }
+
+  return fetch(presign.url, {
+    method: "PUT",
+    body: file,
+    headers: presign.headers ?? { "Content-Type": contentType }
+  });
+}
+
 export function ListingWizard({ user, initialListingId }: WizardProps) {
   const isAgent = user.roles.includes("agent");
   const isEdit = Boolean(initialListingId);
@@ -368,20 +397,18 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
       const listingId = await ensureDraft();
       const nextPhotos = [...draft.photos];
       for (const file of Array.from(files)) {
-        const presign = await jsonFetch<{ url: string; key: string; headers?: Record<string, string> }>("/api/uploads/presign", {
+        const contentType = file.type || "image/jpeg";
+        const presign = await jsonFetch<PresignUploadResponse>("/api/uploads/presign", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contentType: file.type || "image/jpeg",
+            contentType,
+            fileSize: file.size,
             scope: "listing-photo",
             listingId
           })
         });
-        const put = await fetch(presign.url, {
-          method: "PUT",
-          body: file,
-          headers: presign.headers ?? { "Content-Type": file.type || "image/jpeg" }
-        });
+        const put = await uploadToPresignedUrl(presign, file, contentType);
         if (!put.ok) {
           throw new Error(`Upload failed (${put.status})`);
         }
@@ -417,20 +444,18 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
     setErrors({});
     try {
       const listingId = await ensureDraft();
-      const presign = await jsonFetch<{ url: string; key: string; headers?: Record<string, string> }>("/api/uploads/presign", {
+      const contentType = file.type || "image/jpeg";
+      const presign = await jsonFetch<PresignUploadResponse>("/api/uploads/presign", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contentType: file.type || "image/jpeg",
+          contentType,
+          fileSize: file.size,
           scope: "listing-floor-plan",
           listingId
         })
       });
-      const put = await fetch(presign.url, {
-        method: "PUT",
-        body: file,
-        headers: presign.headers ?? { "Content-Type": file.type || "image/jpeg" }
-      });
+      const put = await uploadToPresignedUrl(presign, file, contentType);
       if (!put.ok) {
         throw new Error(`Floor plan upload failed (${put.status})`);
       }

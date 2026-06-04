@@ -88,10 +88,10 @@ const refreshResponseSchema = z.object({
 });
 const presignUploadResponseSchema = z.object({
   url: z.string().url(),
-  fields: z.record(z.string(), z.unknown()).optional(),
+  fields: z.record(z.string(), z.string()),
   key: z.string().min(1),
   maxSizeBytes: z.number().int().positive().optional(),
-  method: z.string().optional(),
+  method: z.enum(["POST", "PUT"]).optional(),
   headers: z.record(z.string(), z.string()).optional()
 });
 const addPhotoResponseSchema = z.object({

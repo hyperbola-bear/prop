@@ -218,8 +218,11 @@ export const uploadScopeSchema = z.enum([
   "seller-verification"
 ]);
 
+export const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024;
+
 export const presignUploadSchema = z.object({
   contentType: uploadContentTypeSchema,
+  fileSize: z.number().int().positive().max(MAX_UPLOAD_SIZE_BYTES),
   scope: uploadScopeSchema,
   listingId: z.uuid().optional()
 });

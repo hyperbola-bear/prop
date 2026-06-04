@@ -6,7 +6,9 @@ import {
   PutObjectCommand,
   S3Client
 } from "@aws-sdk/client-s3";
+import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { MAX_UPLOAD_SIZE_BYTES } from "../../../packages/shared/src/schemas";
 import { env } from "./env";
 
 let cachedS3Client: S3Client | null = null;
@@ -55,6 +57,26 @@ export async function presignObjectPutUrl(
     }),
     { expiresIn: 900 }
   );
+}
+
+export async function presignObjectPostUrl(
+  objectPath: string,
+  contentType: string,
+  maxSizeBytes = MAX_UPLOAD_SIZE_BYTES
+): Promise<{ fields: Record<string, string>; url: string }> {
+  return createPresignedPost(getS3Client(), {
+    Bucket: getPhotoBucket(),
+    Key: objectPath,
+    Conditions: [
+      ["content-length-range", 0, maxSizeBytes],
+      ["eq", "$Content-Type", contentType],
+      ["eq", "$key", objectPath]
+    ],
+    Fields: {
+      "Content-Type": contentType
+    },
+    Expires: 900
+  });
 }
 
 export async function headStorageObject(objectPath: string) {
