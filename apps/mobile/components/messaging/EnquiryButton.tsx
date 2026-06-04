@@ -1,7 +1,7 @@
 import { ApiClientError } from "@proppy/shared/api-client";
 import { useRouter, type Href } from "expo-router";
 import { createElement, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { mobileApiClient } from "../../lib/api";
 
 export function EnquiryButton({ listingId }: { listingId: string }) {
@@ -63,7 +63,12 @@ export function EnquiryButton({ listingId }: { listingId: string }) {
         <Text style={styles.enquiryButtonText}>Send enquiry</Text>
       </Pressable>
 
-      {open ? (
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+        transparent
+        visible={open}
+      >
         <View
           accessibilityLabel="Send enquiry"
           accessibilityRole="alert"
@@ -159,7 +164,7 @@ export function EnquiryButton({ listingId }: { listingId: string }) {
             </View>
           </View>
         </View>
-      ) : null}
+      </Modal>
     </>
   );
 }

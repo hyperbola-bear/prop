@@ -242,4 +242,28 @@ describe("messaging API", () => {
     expect(response?.status).toBe(429);
     expect(response?.headers.get("Retry-After")).toBeTruthy();
   });
+
+  it("rate limits enquiries to sixty message inserts per minute per conversation", async () => {
+    const listingId = await createListingForSeller();
+    const renterToken = await tokenFor("renter1@proppy.test");
+
+    let response: Response | null = null;
+    for (let index = 0; index < 61; index += 1) {
+      response = await POST_ENQUIRY(
+        request("/api/enquiries", "POST", renterToken, {
+          listingId,
+          body: `Enquiry rate limit check ${index}`
+        })
+      );
+
+      if (index === 0) {
+        expect(response.status).toBe(201);
+        const first = await response.clone().json();
+        touchedConversationIds.push(first.conversationId);
+      }
+    }
+
+    expect(response?.status).toBe(429);
+    expect(response?.headers.get("Retry-After")).toBeTruthy();
+  });
 });

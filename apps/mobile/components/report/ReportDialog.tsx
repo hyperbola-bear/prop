@@ -1,7 +1,7 @@
 import { ApiClientError } from "@proppy/shared/api-client";
 import { useRouter, type Href } from "expo-router";
 import { createElement, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { mobileApiClient } from "../../lib/api";
 
 type ReportDialogProps = {
@@ -86,7 +86,12 @@ export function ReportDialog({
         <Text style={styles.reportButtonText}>{buttonLabel}</Text>
       </Pressable>
 
-      {open ? (
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setOpen(false)}
+        transparent
+        visible={open}
+      >
         <View
           accessibilityLabel={`Report this ${targetType}`}
           accessibilityRole="alert"
@@ -214,7 +219,7 @@ export function ReportDialog({
             </View>
           </View>
         </View>
-      ) : null}
+      </Modal>
     </>
   );
 }

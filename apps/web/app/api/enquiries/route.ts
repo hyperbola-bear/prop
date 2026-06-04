@@ -5,6 +5,10 @@ import { scoreMessage } from "../../../../../packages/shared/src/scam-detection"
 import { conversations, enquiries, listings, messages } from "../../../../../packages/db/schema";
 import { db } from "../../../lib/db";
 import {
+  assertConversationMessageRateLimit,
+  mapConversationMessageRateLimitError
+} from "../../../lib/message-rate-limit";
+import {
   ForbiddenError,
   jsonResponse,
   mapError,
@@ -72,6 +76,8 @@ export async function POST(request: NextRequest) {
         throw new Error("Conversation insert failed");
       }
 
+      assertConversationMessageRateLimit(conversation.id);
+
       const [message] = await tx
         .insert(messages)
         .values({
@@ -109,6 +115,11 @@ export async function POST(request: NextRequest) {
 
     return jsonResponse(result, { status: 201 });
   } catch (error) {
+    const rateLimitResponse = mapConversationMessageRateLimitError(error);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     return mapError(error);
   }
 }

@@ -7,13 +7,15 @@ import { conversations, enquiries, messages } from "../../../../../../../package
 import { db } from "../../../../../lib/db";
 import { requireConversationParticipant, serializeMessage } from "../../../../../lib/messaging";
 import {
-  jsonError,
   jsonResponse,
   mapError,
   optionsResponse,
   requireAuth
 } from "../../../../../lib/route-helpers";
-import { checkRateLimit, messageRateLimits } from "../../../../../lib/rate-limit";
+import {
+  assertConversationMessageRateLimit,
+  mapConversationMessageRateLimitError
+} from "../../../../../lib/message-rate-limit";
 
 const conversationIdSchema = z.uuid();
 
@@ -27,12 +29,7 @@ export async function POST(request: NextRequest, context: MessageRouteContext) {
     const params = await context.params;
     const conversationId = conversationIdSchema.parse(params.id);
     const conversation = await requireConversationParticipant(conversationId, currentUser.userId);
-    const rateLimit = checkRateLimit(conversationId, messageRateLimits);
-    if (!rateLimit.ok) {
-      return jsonError(429, "rate_limited", "Try again later", undefined, {
-        "Retry-After": String(rateLimit.retryAfterSec)
-      });
-    }
+    assertConversationMessageRateLimit(conversationId);
 
     const body = createConversationMessageSchema.parse(await request.json().catch(() => ({})));
     const now = new Date();
@@ -80,6 +77,11 @@ export async function POST(request: NextRequest, context: MessageRouteContext) {
 
     return jsonResponse(serializeMessage(created), { status: 201 });
   } catch (error) {
+    const rateLimitResponse = mapConversationMessageRateLimitError(error);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     return mapError(error);
   }
 }
