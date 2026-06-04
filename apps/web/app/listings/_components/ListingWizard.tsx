@@ -498,6 +498,24 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
     }
   }
 
+  async function updatePhotoRoomTag(photoId: string, roomTag: string) {
+    if (!draft.id) {
+      return;
+    }
+    try {
+      await jsonFetch(`/api/listings/${draft.id}/photos/${photoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room_tag: roomTag })
+      });
+      setLastSaved(new Date().toLocaleTimeString("en-SG"));
+    } catch (error) {
+      setErrors({
+        photos: error instanceof Error ? error.message : "Room tag update failed"
+      });
+    }
+  }
+
   async function next() {
     setErrors({});
     if (step === 0) {
@@ -792,8 +810,10 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
                   <select
                     value={photo.roomTag}
                     onChange={(event) => {
-                      const photos = draft.photos.map((candidate) => candidate.id === photo.id ? { ...candidate, roomTag: event.target.value } : candidate);
+                      const roomTag = event.target.value;
+                      const photos = draft.photos.map((candidate) => candidate.id === photo.id ? { ...candidate, roomTag } : candidate);
                       dispatch({ type: "setPhotos", photos });
+                      void updatePhotoRoomTag(photo.id, roomTag);
                     }}
                     className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2"
                   >

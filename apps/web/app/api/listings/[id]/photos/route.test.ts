@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { POST } from "./route";
+import { PATCH as updatePhotoRoomTag } from "./[photoId]/route";
 import { PATCH as reorderPhotos } from "./reorder/route";
 import { signSessionToken } from "../../../../../lib/auth-context";
 import { db } from "../../../../../lib/db";
@@ -59,6 +60,32 @@ function reorderRequest(listingId: string, token: string, orderedIds: string[]) 
   });
 }
 
+async function createPhoto(listingId: string, roomTag = "Living") {
+  const [photo] = await db
+    .insert(listingPhotos)
+    .values({
+      listingId,
+      s3Key: `tests/room-tag/${listingId}/${crypto.randomUUID()}.jpg`,
+      altText: "Room tag test photo",
+      roomTag,
+      sortOrder: 0
+    })
+    .returning({ id: listingPhotos.id });
+  if (!photo) throw new Error("Failed to create photo");
+  return photo.id;
+}
+
+function updateRoomTagRequest(listingId: string, photoId: string, body: unknown, token?: string) {
+  return new NextRequest(`http://localhost:3100/api/listings/${listingId}/photos/${photoId}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify(body)
+  });
+}
+
 describe("POST /api/listings/:id/photos", () => {
   it("downloads an uploaded image, processes it with sharp, and inserts listing_photos", async () => {
     const listingId = await createDraft();
@@ -104,6 +131,66 @@ describe("POST /api/listings/:id/photos", () => {
     );
 
     expect(response.status).toBe(403);
+  });
+});
+
+describe("PATCH /api/listings/:id/photos/:photoId", () => {
+  it("requires authentication", async () => {
+    const listingId = await createDraft();
+    const photoId = await createPhoto(listingId);
+
+    const response = await updatePhotoRoomTag(
+      updateRoomTagRequest(listingId, photoId, { room_tag: "Bedroom" }),
+      { params: Promise.resolve({ id: listingId, photoId }) }
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it("rejects callers who do not own the listing", async () => {
+    const listingId = await createDraft("landlord1@proppy.test");
+    const photoId = await createPhoto(listingId);
+    const token = await tokenFor("landlord2@proppy.test");
+
+    const response = await updatePhotoRoomTag(
+      updateRoomTagRequest(listingId, photoId, { room_tag: "Bedroom" }, token),
+      { params: Promise.resolve({ id: listingId, photoId }) }
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it("validates room_tag against the listing-photo room enum", async () => {
+    const listingId = await createDraft();
+    const photoId = await createPhoto(listingId);
+    const token = await tokenFor("landlord1@proppy.test");
+
+    const response = await updatePhotoRoomTag(
+      updateRoomTagRequest(listingId, photoId, { room_tag: "Exterior" }, token),
+      { params: Promise.resolve({ id: listingId, photoId }) }
+    );
+
+    expect(response.status).toBe(400);
+  });
+
+  it("persists the room_tag value", async () => {
+    const listingId = await createDraft();
+    const photoId = await createPhoto(listingId, "Living");
+    const token = await tokenFor("landlord1@proppy.test");
+
+    const response = await updatePhotoRoomTag(
+      updateRoomTagRequest(listingId, photoId, { room_tag: "Bedroom" }, token),
+      { params: Promise.resolve({ id: listingId, photoId }) }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ id: photoId, roomTag: "Bedroom" });
+
+    const [row] = await db
+      .select({ roomTag: listingPhotos.roomTag })
+      .from(listingPhotos)
+      .where(eq(listingPhotos.id, photoId));
+    expect(row?.roomTag).toBe("Bedroom");
   });
 });
 

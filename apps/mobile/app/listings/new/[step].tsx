@@ -40,6 +40,8 @@ type UploadFile = {
   type: "image/jpeg" | "image/png" | "image/webp";
 };
 
+type EditableRoomTag = (typeof ROOM_TAGS)[number];
+
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -373,6 +375,25 @@ export default function ListingWizardScreen() {
     }
   }
 
+  async function updatePhotoRoomTag(photoId: string, roomTag: string) {
+    if (!draft.id) {
+      return;
+    }
+    if (!ROOM_TAGS.includes(roomTag as EditableRoomTag)) {
+      return;
+    }
+    try {
+      await mobileApiClient.listings.updatePhotoRoomTag(draft.id, photoId, {
+        roomTag: roomTag as EditableRoomTag
+      });
+      setLastSaved(new Date().toLocaleTimeString("en-SG"));
+    } catch (cause) {
+      setErrors({
+        photos: cause instanceof Error ? cause.message : "Room tag update failed"
+      });
+    }
+  }
+
   async function next() {
     setErrors({});
     try {
@@ -696,6 +717,7 @@ export default function ListingWizardScreen() {
                           candidate.id === photo.id ? { ...candidate, roomTag } : candidate
                         )
                       });
+                      void updatePhotoRoomTag(photo.id, roomTag);
                     }}
                     options={[...ROOM_TAGS]}
                     value={photo.roomTag}

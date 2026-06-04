@@ -8,7 +8,8 @@ import {
   ownedListingsResponseSchema,
   patchListingSchema,
   presignUploadSchema,
-  reorderListingPhotosSchema
+  reorderListingPhotosSchema,
+  updateListingPhotoRoomTagSchema
 } from "../schemas/listings";
 import type {
   AddRoleInput,
@@ -107,6 +108,10 @@ const addPhotoResponseSchema = z.object({
   id: z.uuid(),
   sortOrder: z.number().int()
 });
+const updatePhotoRoomTagResponseSchema = z.object({
+  id: z.uuid(),
+  roomTag: z.string().nullable()
+});
 const floorPlanResponseSchema = z.object({
   id: z.uuid()
 });
@@ -141,6 +146,7 @@ export type PatchListingInput = z.input<typeof patchListingSchema>;
 export type PresignUploadInput = z.input<typeof presignUploadSchema>;
 export type AddListingPhotoInput = z.input<typeof addListingPhotoSchema>;
 export type ReorderListingPhotosInput = z.infer<typeof reorderListingPhotosSchema>;
+export type UpdateListingPhotoRoomTagInput = z.input<typeof updateListingPhotoRoomTagSchema>;
 export type ResolveAddressInput = z.infer<typeof resolveAddressInputSchema>;
 export type OnemapSuggestion = z.infer<typeof onemapSuggestionSchema>;
 
@@ -334,6 +340,18 @@ export function createApiClient(options: ApiClientOptions = {}) {
           fetcher,
           apiUrl(baseUrl, `/api/listings/${encodeURIComponent(id)}/photos/reorder`),
           okResponseSchema,
+          jsonPatch(input),
+          getToken
+        );
+      },
+      updatePhotoRoomTag(id: string, photoId: string, input: UpdateListingPhotoRoomTagInput) {
+        return request(
+          fetcher,
+          apiUrl(
+            baseUrl,
+            `/api/listings/${encodeURIComponent(id)}/photos/${encodeURIComponent(photoId)}`
+          ),
+          updatePhotoRoomTagResponseSchema,
           jsonPatch(input),
           getToken
         );

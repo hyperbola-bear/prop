@@ -237,6 +237,14 @@ export const roomTagSchema = z.enum([
   "Floor plan"
 ]);
 
+export const editableListingPhotoRoomTagSchema = z.enum([
+  "Living",
+  "Kitchen",
+  "Bedroom",
+  "Bathroom",
+  "Balcony"
+]);
+
 export const addListingPhotoSchema = z
   .object({
     key: z.string().min(1),
@@ -256,3 +264,16 @@ export const addListingPhotoSchema = z
 export const reorderListingPhotosSchema = z.object({
   orderedIds: z.array(z.uuid()).min(1)
 });
+
+export const updateListingPhotoRoomTagSchema = z
+  .object({
+    roomTag: editableListingPhotoRoomTagSchema.optional(),
+    room_tag: editableListingPhotoRoomTagSchema.optional()
+  })
+  .transform((value) => ({
+    roomTag: value.roomTag ?? value.room_tag
+  }))
+  .refine((value) => value.roomTag !== undefined, {
+    message: "room_tag is required",
+    path: ["room_tag"]
+  });
