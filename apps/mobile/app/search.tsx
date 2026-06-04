@@ -12,6 +12,12 @@ import {
   SortAndViewControls
 } from "../components/search/SearchControls";
 import { mobileApiClient } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
+import {
+  canHydrateFavorites,
+  favoriteIdsFromListings,
+  isInitiallyFavorited
+} from "../lib/favorite-hydration";
 import {
   filtersFromParams,
   listingOptionsFromParams,
@@ -23,6 +29,7 @@ import {
 export default function SearchScreen() {
   const router = useRouter();
   const rawParams = useLocalSearchParams<Record<string, string | string[]>>();
+  const { isHydrating, token, user } = useAuth();
   const paramsKey = JSON.stringify(rawParams);
   const params = useMemo(
     () => JSON.parse(paramsKey) as Record<string, string | string[] | undefined>,
@@ -32,6 +39,7 @@ export default function SearchScreen() {
     filtersFromParams(params)
   );
   const [listings, setListings] = useState<ListingSummary[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -49,14 +57,28 @@ export default function SearchScreen() {
   }, [params, paramsKey]);
 
   useEffect(() => {
+    if (isHydrating) {
+      return;
+    }
+
     let isMounted = true;
     setIsLoading(true);
 
-    mobileApiClient.listings
-      .list(listingOptionsFromParams(params))
-      .then(({ items }) => {
+    const favoritesPromise = canHydrateFavorites(token, user)
+      ? mobileApiClient.me
+          .favorites()
+          .then(({ items }) => favoriteIdsFromListings(items))
+          .catch(() => new Set<string>())
+      : Promise.resolve(new Set<string>());
+
+    Promise.all([
+      mobileApiClient.listings.list(listingOptionsFromParams(params)),
+      favoritesPromise
+    ])
+      .then(([{ items }, nextFavoriteIds]) => {
         if (isMounted) {
           setListings(items);
+          setFavoriteIds(nextFavoriteIds);
           setError(null);
         }
       })
@@ -78,7 +100,7 @@ export default function SearchScreen() {
     return () => {
       isMounted = false;
     };
-  }, [params, paramsKey]);
+  }, [isHydrating, params, paramsKey, token, user]);
 
   function changeFilter(key: SearchFilterKey, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
@@ -145,6 +167,10 @@ export default function SearchScreen() {
               <View accessibilityLabel="Visible listings" style={styles.mapList}>
                 {listings.map((listing) => (
                   <ListingCard
+                    initialFavorited={isInitiallyFavorited(
+                      listing.id,
+                      favoriteIds
+                    )}
                     key={listing.id}
                     listing={listing}
                     onPress={openListing}
@@ -158,6 +184,10 @@ export default function SearchScreen() {
             <View accessibilityLabel="Search results" style={styles.grid}>
               {listings.map((listing) => (
                 <ListingCard
+                  initialFavorited={isInitiallyFavorited(
+                    listing.id,
+                    favoriteIds
+                  )}
                   key={listing.id}
                   listing={listing}
                   onPress={openListing}

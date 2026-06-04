@@ -76,4 +76,49 @@ describe("shared API auth client", () => {
       status: 401
     } satisfies Partial<ApiClientError>);
   });
+
+  it("patches saved searches with JSON and forwards bearer auth", async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        id: "11111111-1111-4111-8111-111111111111",
+        user_id: "22222222-2222-4222-8222-222222222222",
+        name: "Tampines alerts",
+        query: { town: "TAMPINES" },
+        notify_email: false,
+        created_at: "2026-06-04T00:00:00.000Z",
+        updated_at: "2026-06-04T00:00:01.000Z",
+        last_run_at: "2026-06-04T00:00:00.000Z"
+      })
+    );
+    const client = createApiClient({
+      baseUrl: "http://localhost:3100",
+      fetch: fetcher,
+      getToken: () => "signed.jwt.token"
+    });
+
+    await expect(
+      client.savedSearches.update("11111111-1111-4111-8111-111111111111", {
+        notify_email: false
+      })
+    ).resolves.toMatchObject({
+      id: "11111111-1111-4111-8111-111111111111",
+      notify_email: false
+    });
+
+    const calls = fetcher.mock.calls as unknown as Array<
+      [unknown, RequestInit]
+    >;
+    const [url, init] = calls[0] ?? [];
+    expect(url).toBe(
+      "http://localhost:3100/api/saved-searches/11111111-1111-4111-8111-111111111111"
+    );
+    expect(init?.method).toBe("PATCH");
+    expect(init?.body).toBe(JSON.stringify({ notify_email: false }));
+    expect((init?.headers as Headers).get("Content-Type")).toBe(
+      "application/json"
+    );
+    expect((init?.headers as Headers).get("Authorization")).toBe(
+      "Bearer signed.jwt.token"
+    );
+  });
 });

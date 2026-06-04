@@ -92,7 +92,12 @@ function cursorCondition(cursor: string | null, sort: ListingSort): SQL | undefi
     if (!decodedCursor.priceSgd) {
       throw new InvalidCursorError();
     }
-    const price = BigInt(decodedCursor.priceSgd);
+    let price: bigint;
+    try {
+      price = BigInt(decodedCursor.priceSgd);
+    } catch {
+      throw new InvalidCursorError();
+    }
     const priceComparison =
       sort === "price_asc" ? gt(listings.priceSgd, price) : lt(listings.priceSgd, price);
     const idComparison =
@@ -459,6 +464,15 @@ export async function getFavoriteListings(userId: string): Promise<{ items: List
   return {
     items: rows.map((row) => toSummary(row, photoMap.get(row.id) ?? []))
   };
+}
+
+export async function getFavoriteListingIds(userId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ listingId: favorites.listingId })
+    .from(favorites)
+    .where(and(eq(favorites.userId, userId), isNull(favorites.deletedAt)));
+
+  return new Set(rows.map((row) => row.listingId));
 }
 
 export { InvalidCursorError };

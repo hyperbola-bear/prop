@@ -9,6 +9,7 @@ import {
   ownedListingDetailSchema,
   ownedListingsResponseSchema,
   patchListingSchema,
+  patchSavedSearchSchema,
   presignUploadSchema,
   reorderListingPhotosSchema,
   savedSearchSchema,
@@ -164,6 +165,7 @@ const onemapSuggestionsSchema = z.array(onemapSuggestionSchema);
 export type CreateListingInput = z.input<typeof createListingSchema>;
 export type PatchListingInput = z.input<typeof patchListingSchema>;
 export type CreateSavedSearchInput = z.input<typeof createSavedSearchSchema>;
+export type PatchSavedSearchInput = z.input<typeof patchSavedSearchSchema>;
 export type PresignUploadInput = z.input<typeof presignUploadSchema>;
 export type AddListingPhotoInput = z.input<typeof addListingPhotoSchema>;
 export type ReorderListingPhotosInput = z.infer<typeof reorderListingPhotosSchema>;
@@ -499,6 +501,15 @@ export function createApiClient(options: ApiClientOptions = {}) {
           apiUrl(baseUrl, "/api/saved-searches"),
           savedSearchSchema,
           jsonPost(input),
+          getToken
+        );
+      },
+      update(id: string, input: PatchSavedSearchInput): Promise<SavedSearch> {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/saved-searches/${encodeURIComponent(id)}`),
+          savedSearchSchema,
+          jsonPatch(input),
           getToken
         );
       },

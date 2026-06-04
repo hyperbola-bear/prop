@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { and, eq, isNull } from "drizzle-orm";
 import { savedSearches } from "../../../../../../packages/db/schema";
+import {
+  patchSavedSearchSchema,
+  savedSearchSchema
+} from "../../../../../../packages/shared/src/schemas";
 import { db } from "../../../../lib/db";
 import {
   apiCorsHeaders,
+  jsonResponse,
   mapError,
   optionsResponse,
   requireAuth,
@@ -12,13 +17,19 @@ import {
 } from "../../../../lib/route-helpers";
 
 const savedSearchIdSchema = z.uuid();
-const patchSavedSearchSchema = z.object({
-  notify_email: z.boolean().optional(),
-  notifyEmail: z.boolean().optional()
-}).refine((value) => value.notify_email !== undefined || value.notifyEmail !== undefined, {
-  message: "notify_email is required",
-  path: ["notify_email"]
-});
+
+function serializeSavedSearch(row: typeof savedSearches.$inferSelect) {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    name: row.name,
+    query: row.query as Record<string, string | number | boolean>,
+    notify_email: row.notifyEmail,
+    created_at: row.createdAt?.toISOString() ?? null,
+    updated_at: row.updatedAt?.toISOString() ?? null,
+    last_run_at: row.lastRunAt?.toISOString() ?? null
+  };
+}
 
 type SavedSearchRouteContext = {
   params: Promise<{ id: string }> | { id: string };
@@ -34,7 +45,7 @@ export async function PATCH(request: NextRequest, context: SavedSearchRouteConte
     const [updated] = await db
       .update(savedSearches)
       .set({
-        notifyEmail: body.notifyEmail ?? body.notify_email ?? false,
+        notifyEmail: body.notifyEmail,
         updatedAt: new Date()
       })
       .where(
@@ -44,10 +55,7 @@ export async function PATCH(request: NextRequest, context: SavedSearchRouteConte
           isNull(savedSearches.deletedAt)
         )
       )
-      .returning({
-        id: savedSearches.id,
-        notify_email: savedSearches.notifyEmail
-      });
+      .returning();
 
     if (!updated) {
       return new NextResponse(
@@ -63,14 +71,7 @@ export async function PATCH(request: NextRequest, context: SavedSearchRouteConte
       );
     }
 
-    return new NextResponse(JSON.stringify(updated), {
-      status: 200,
-      headers: {
-        "content-type": "application/json",
-        ...apiCorsHeaders,
-        ...securityHeaders
-      }
-    });
+    return jsonResponse(savedSearchSchema.parse(serializeSavedSearch(updated)));
   } catch (error) {
     return mapError(error);
   }

@@ -173,6 +173,19 @@ export const createSavedSearchSchema = z
     notifyEmail: value.notifyEmail ?? value.notify_email ?? true
   }));
 
+export const patchSavedSearchSchema = z
+  .object({
+    notify_email: z.boolean().optional(),
+    notifyEmail: z.boolean().optional()
+  })
+  .transform((value) => ({
+    notifyEmail: value.notifyEmail ?? value.notify_email
+  }))
+  .refine((value) => value.notifyEmail !== undefined, {
+    message: "notify_email is required",
+    path: ["notify_email"]
+  });
+
 export const savedSearchSchema = z.object({
   id: z.uuid(),
   user_id: z.uuid(),

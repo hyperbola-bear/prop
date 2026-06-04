@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createApiClient } from "../../../../packages/shared/src/api-client";
 
 type NotifyEmailToggleProps = {
   savedSearchId: string;
@@ -17,14 +18,15 @@ export function NotifyEmailToggle({
   async function update(nextChecked: boolean) {
     setChecked(nextChecked);
     setIsSaving(true);
-    const response = await fetch(`/api/saved-searches/${savedSearchId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notify_email: nextChecked })
-    });
-    setIsSaving(false);
-    if (!response.ok) {
+    try {
+      await createApiClient({ baseUrl: window.location.origin }).savedSearches.update(
+        savedSearchId,
+        { notify_email: nextChecked }
+      );
+    } catch {
       setChecked(!nextChecked);
+    } finally {
+      setIsSaving(false);
     }
   }
 

@@ -3,7 +3,7 @@ import { useRouter, type Href } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { AuthNav } from "../components/AuthNav";
-import { mobileApiBaseUrl, mobileApiClient } from "../lib/api";
+import { mobileApiClient } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import {
   describeSavedQuery,
@@ -71,19 +71,11 @@ export default function SavedSearchesScreen() {
       )
     );
 
-    const response = await fetch(
-      `${mobileApiBaseUrl}/api/saved-searches/${encodeURIComponent(id)}`,
-      {
-        body: JSON.stringify({ notify_email: notifyEmail }),
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        method: "PATCH"
-      }
-    );
-
-    if (!response.ok) {
+    try {
+      await mobileApiClient.savedSearches.update(id, {
+        notify_email: notifyEmail
+      });
+    } catch {
       setSavedSearches((current) =>
         current.map((savedSearch) =>
           savedSearch.id === id

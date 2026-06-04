@@ -8,6 +8,8 @@ import { RadiusFilter } from "../../components/search/RadiusFilter";
 import { SaveSearchButton } from "../../components/search/SaveSearchButton";
 import { SortSelect } from "../../components/search/SortSelect";
 import { serverApiClient } from "../../lib/api-client";
+import { getFavoriteListingIds } from "../../lib/listings";
+import { currentSessionUser } from "../../lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +65,14 @@ function optionsFromSearchParams(
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const params = await searchParams;
   const options = optionsFromSearchParams(params);
-  const { items } = await serverApiClient().listings.list(options);
+  const [user, { items }] = await Promise.all([
+    currentSessionUser(),
+    serverApiClient().listings.list(options)
+  ]);
+  const favoriteIds =
+    user?.roles.some((role) => role === "buyer" || role === "renter")
+      ? await getFavoriteListingIds(user.id)
+      : new Set<string>();
   const isMap = firstParam(params.view) === "map";
 
   return (
@@ -112,14 +121,22 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               <DynamicMapView listings={items} />
               <section aria-label="Visible listings" className="grid max-h-[520px] gap-4 overflow-auto pr-1">
                 {items.map((listing) => (
-                  <ListingCard key={listing.id} listing={listing} />
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    initialFavorited={favoriteIds.has(listing.id)}
+                  />
                 ))}
               </section>
             </div>
           ) : (
             <section aria-label="Search results" className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {items.map((listing) => (
-                <ListingCard key={listing.id} listing={listing} />
+                <ListingCard
+                  key={listing.id}
+                  listing={listing}
+                  initialFavorited={favoriteIds.has(listing.id)}
+                />
               ))}
             </section>
           )}

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Buffer } from "node:buffer";
 import { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { GET, POST } from "./route";
@@ -203,6 +204,30 @@ describe("GET /api/listings", () => {
     expect(canonicalPage.items.map((item) => item.id)).toEqual(
       combined.map((item) => item.id)
     );
+  });
+
+  it("rejects malformed price-sort cursors with invalid_cursor", async () => {
+    const malformedCursor = Buffer.from(
+      JSON.stringify({
+        sort: "price_asc",
+        id: "00000000-0000-4000-8000-000000000000",
+        priceSgd: "not-a-bigint"
+      }),
+      "utf8"
+    ).toString("base64url");
+
+    const response = await GET(
+      new NextRequest(
+        `http://localhost:3100/api/listings?sort=price_asc&cursor=${encodeURIComponent(
+          malformedCursor
+        )}`
+      )
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "invalid_cursor" }
+    });
   });
 });
 
