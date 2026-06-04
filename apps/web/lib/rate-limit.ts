@@ -72,3 +72,7 @@ export const otpRequestRateLimits: Limit[] = [
 export const createListingRateLimits: Limit[] = [
   { id: "listings/post/hour", max: 30, windowMs: 60 * 60_000 }
 ];
+
+export const messageRateLimits: Limit[] = [
+  { id: "conversations/messages/60s", max: 60, windowMs: 60_000 }
+];

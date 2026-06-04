@@ -45,6 +45,10 @@
     "./search-query": {
       "types": "./dist/search-query/index.d.ts",
       "default": "./dist/search-query/index.js"
+    },
+    "./scam-detection": {
+      "types": "./dist/scam-detection/index.d.ts",
+      "default": "./dist/scam-detection/index.js"
     }
   },
   "scripts": {

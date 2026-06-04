@@ -1,6 +1,7 @@
 import { closeDb } from "./db";
 import { startHealthServer } from "./health";
 import { startEmailQueueDrain } from "./tasks/email";
+import { startEnquirySlaTick } from "./tasks/enquiry-sla";
 import { startExpiryTick } from "./tasks/expiry";
 import { startSavedSearchAlerts } from "./tasks/saved-search-alerts";
 import { type StopTask } from "./ticker";
@@ -10,6 +11,7 @@ const config = readConfig();
 
 const stops: StopTask[] = [
   startExpiryTick({ intervalMs: 60_000 }),
+  startEnquirySlaTick({ intervalMs: 60_000 }),
   startEmailQueueDrain({ intervalMs: 5 * 60_000 }),
   startSavedSearchAlerts({ intervalMs: 5 * 60_000 }),
   startHealthServer({ port: config.healthPort })

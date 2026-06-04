@@ -16,3 +16,4 @@ export * from "./myinfo-mock";
 export * from "./onemap";
 export * from "./ssrf-guard";
 export * from "./search-query";
+export * from "./scam-detection";
