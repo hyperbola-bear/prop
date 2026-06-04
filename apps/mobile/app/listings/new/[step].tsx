@@ -1,4 +1,4 @@
-import type { OnemapSuggestion } from "@proppy/shared/api-client";
+import type { OnemapSuggestion, SellerClient } from "@proppy/shared/api-client";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import React from "react";
@@ -22,6 +22,7 @@ import {
   FURNISHING,
   ROOM_TAGS,
   blankListingDraft,
+  buildCreateListingPayload,
   dollarsToCents,
   fallbackSuggestion,
   listingWizardReducer,
@@ -48,7 +49,7 @@ function stepParam(value: string | string[] | undefined): number {
   if (!Number.isFinite(parsed)) {
     return 1;
   }
-  return Math.min(7, Math.max(1, parsed));
+  return Math.min(8, Math.max(1, parsed));
 }
 
 function normalizeImageType(type: string | undefined | null): UploadFile["type"] {
@@ -89,15 +90,22 @@ export default function ListingWizardScreen() {
   const initialStep = useMemo(() => stepParam(params.step), [params.step]);
   const listingId = useMemo(() => firstParam(params.listingId), [params.listingId]);
   const isEdit = Boolean(listingId);
-  const { isHydrating, token } = useAuth();
+  const { isHydrating, refreshUser, token, user } = useAuth();
   const [draft, dispatch] = useReducer(listingWizardReducer, blankListingDraft());
   const [step, setStep] = useState(initialStep);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [suggestions, setSuggestions] = useState<OnemapSuggestion[]>([]);
   const [addressQuery, setAddressQuery] = useState("");
+  const [clients, setClients] = useState<SellerClient[]>([]);
+  const [clientQuery, setClientQuery] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [lastSaved, setLastSaved] = useState("");
 
+  const isAgent = Boolean(user?.roles.includes("agent"));
+  const isAgentNewListing = isAgent && !isEdit;
+  const totalSteps = isAgentNewListing ? 8 : 7;
+  const contentStep = isAgentNewListing ? step - 1 : step;
+  const isMandateStep = isAgentNewListing && step === 1;
   const missingFields = useMemo(() => missingFieldsForDraft(draft), [draft]);
 
   useEffect(() => {
@@ -107,8 +115,20 @@ export default function ListingWizardScreen() {
   }, [isHydrating, router, token]);
 
   useEffect(() => {
+    if (token && !user) {
+      void refreshUser();
+    }
+  }, [refreshUser, token, user]);
+
+  useEffect(() => {
     setStep(initialStep);
   }, [initialStep]);
+
+  useEffect(() => {
+    if (step > totalSteps) {
+      setStep(totalSteps);
+    }
+  }, [step, totalSteps]);
 
   useEffect(() => {
     if (!listingId || !token) {
@@ -128,6 +148,13 @@ export default function ListingWizardScreen() {
           status: payload.status,
           title: payload.title,
           description: payload.description ?? "",
+          ownerUserId: payload.ownerUserId ?? "",
+          freeformSellerEmail: "",
+          mandateVia:
+            payload.representedVia === "agent_mandate" ||
+            payload.representedVia === "agent_no_mandate"
+              ? payload.representedVia
+              : "",
           propertyType: "hdb",
           block: payload.block ?? "",
           street: payload.street ?? "",
@@ -169,7 +196,22 @@ export default function ListingWizardScreen() {
   }, [listingId, token]);
 
   useEffect(() => {
-    if (step !== 2 || addressQuery.trim().length < 3) {
+    if (!isAgent) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      mobileApiClient.me
+        .clients(clientQuery.trim())
+        .then((payload) => setClients(payload.items))
+        .catch(() => setClients([]));
+    }, 250);
+
+    return () => clearTimeout(timeout);
+  }, [clientQuery, isAgent]);
+
+  useEffect(() => {
+    if (contentStep !== 2 || addressQuery.trim().length < 3) {
       setSuggestions([]);
       return;
     }
@@ -184,10 +226,10 @@ export default function ListingWizardScreen() {
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [addressQuery, step]);
+  }, [addressQuery, contentStep]);
 
   function goToStep(nextStep: number) {
-    const bounded = Math.min(7, Math.max(1, nextStep));
+    const bounded = Math.min(totalSteps, Math.max(1, nextStep));
     setStep(bounded);
   }
 
@@ -196,13 +238,9 @@ export default function ListingWizardScreen() {
       return draft.id;
     }
 
-    const created = await mobileApiClient.listings.create({
-      title: draft.title || "HDB rental",
-      description: draft.description,
-      priceSgd: dollarsToCents(draft.monthlyRent),
-      propertyType: "hdb",
-      listingType: "rental"
-    });
+    const created = await mobileApiClient.listings.create(
+      buildCreateListingPayload(draft, isAgent)
+    );
     dispatch({ type: "patch", patch: { id: created.id, status: created.status } });
     return created.id;
   }
@@ -238,7 +276,7 @@ export default function ListingWizardScreen() {
       };
       dispatch({ type: "patch", patch });
       await patchListing({ addressId: resolved.addressId, blockId: resolved.blockId });
-      goToStep(3);
+      goToStep(step + 1);
     } catch (cause) {
       setErrors({
         address: cause instanceof Error ? cause.message : "Address selection failed"
@@ -338,18 +376,40 @@ export default function ListingWizardScreen() {
   async function next() {
     setErrors({});
     try {
-      if (step === 1) {
+      if (isMandateStep) {
+        if (!draft.ownerUserId && !draft.freeformSellerEmail.trim()) {
+          setErrors({
+            ownerUserId: "Select a seller or enter a seller email before continuing."
+          });
+          return;
+        }
+        if (!draft.ownerUserId && draft.freeformSellerEmail.trim()) {
+          const client = await mobileApiClient.me.createClient({
+            email: draft.freeformSellerEmail.trim()
+          });
+          dispatch({
+            type: "patch",
+            patch: {
+              ownerUserId: client.id,
+              mandateVia: "agent_no_mandate"
+            }
+          });
+        }
+        goToStep(step + 1);
+        return;
+      }
+      if (contentStep === 1) {
         if (draft.propertyType !== "hdb") {
           setErrors({ propertyType: "HDB is required for this MVP." });
           return;
         }
         await ensureDraft();
       }
-      if (step === 2 && (!draft.addressId || !draft.blockId)) {
+      if (contentStep === 2 && (!draft.addressId || !draft.blockId)) {
         setErrors({ address: "Select a OneMap suggestion before continuing." });
         return;
       }
-      if (step === 3) {
+      if (contentStep === 3) {
         if (!draft.flatType) {
           setErrors({ flatType: "Flat type is required." });
           return;
@@ -365,11 +425,11 @@ export default function ListingWizardScreen() {
           floorLevelBand: draft.floorLevelBand || null
         });
       }
-      if (step === 4 && draft.photos.length < 3) {
+      if (contentStep === 4 && draft.photos.length < 3) {
         setErrors({ photos: "At least 3 photos required." });
         return;
       }
-      if (step === 6) {
+      if (contentStep === 6) {
         const rent = Number(draft.monthlyRent);
         if (Number.isNaN(rent) || rent < 100 || rent > 50000) {
           setErrors({ monthlyRent: "Monthly rent must be between S$100 and S$50,000." });
@@ -429,7 +489,7 @@ export default function ListingWizardScreen() {
     }
   }
 
-  if (isHydrating || !token) {
+  if (isHydrating || !token || !user) {
     return (
       <View style={styles.centered}>
         <Text style={styles.status}>Preparing listing wizard…</Text>
@@ -450,15 +510,66 @@ export default function ListingWizardScreen() {
           HDB rental listing wizard
         </Text>
         <Text style={styles.subtitle}>
-          Step {step} of 7{lastSaved ? ` · Saved at ${lastSaved}` : ""}
+          Step {step} of {totalSteps}
+          {lastSaved ? ` · Saved at ${lastSaved}` : ""}
         </Text>
       </View>
 
       {errors.load ? <AlertText>{errors.load}</AlertText> : null}
       {errors.submit ? <AlertText>{errors.submit}</AlertText> : null}
 
-      {step === 1 ? (
+      {isMandateStep ? (
         <View style={styles.card} testID="wizard-step-1">
+          <SectionTitle
+            title="Acting on behalf of"
+            body="Select a seller from prior mandate clients, search by email or phone, or enter a seller email to create a pending seller."
+          />
+          <LabeledInput
+            label="Search sellers"
+            onChangeText={setClientQuery}
+            placeholder="landlord1@proppy.test or +65…"
+            testID="client-search-input"
+            value={clientQuery}
+          />
+          <ClientPicker
+            clients={clients}
+            onSelect={(ownerUserId) =>
+              dispatch({
+                type: "patch",
+                patch: {
+                  ownerUserId,
+                  freeformSellerEmail: ownerUserId ? "" : draft.freeformSellerEmail,
+                  mandateVia: ownerUserId ? "agent_mandate" : ""
+                }
+              })
+            }
+            selectedClientId={draft.ownerUserId}
+          />
+          <LabeledInput
+            label="Freeform seller email"
+            onChangeText={(freeformSellerEmail) =>
+              dispatch({
+                type: "patch",
+                patch: {
+                  freeformSellerEmail,
+                  ownerUserId: freeformSellerEmail ? "" : draft.ownerUserId,
+                  mandateVia: freeformSellerEmail ? "agent_no_mandate" : draft.mandateVia
+                }
+              })
+            }
+            placeholder="seller@example.com"
+            testID="freeform-seller-email"
+            value={draft.freeformSellerEmail}
+          />
+          {draft.ownerUserId ? (
+            <Text style={styles.status}>Selected seller will own this listing.</Text>
+          ) : null}
+          {errors.ownerUserId ? <AlertText>{errors.ownerUserId}</AlertText> : null}
+        </View>
+      ) : null}
+
+      {contentStep === 1 ? (
+        <View style={styles.card} testID={`wizard-step-${step}`}>
           <SectionTitle title="Property type" />
           <View style={styles.choiceGrid}>
             <Pressable
@@ -486,8 +597,8 @@ export default function ListingWizardScreen() {
         </View>
       ) : null}
 
-      {step === 2 ? (
-        <View style={styles.card} testID="wizard-step-2">
+      {contentStep === 2 ? (
+        <View style={styles.card} testID={`wizard-step-${step}`}>
           <SectionTitle title="Address" />
           <LabeledInput
             label="OneMap autocomplete"
@@ -523,8 +634,8 @@ export default function ListingWizardScreen() {
         </View>
       ) : null}
 
-      {step === 3 ? (
-        <View style={styles.card} testID="wizard-step-3">
+      {contentStep === 3 ? (
+        <View style={styles.card} testID={`wizard-step-${step}`}>
           <SectionTitle title="Unit details" />
           <View style={styles.formGrid}>
             <SelectInput
@@ -558,8 +669,8 @@ export default function ListingWizardScreen() {
         </View>
       ) : null}
 
-      {step === 4 ? (
-        <View style={styles.card} testID="wizard-step-4">
+      {contentStep === 4 ? (
+        <View style={styles.card} testID={`wizard-step-${step}`}>
           <SectionTitle
             title="Photos"
             body="Upload at least 3 photos. Use Move up / Move down to reorder on Expo Web."
@@ -615,8 +726,8 @@ export default function ListingWizardScreen() {
         </View>
       ) : null}
 
-      {step === 5 ? (
-        <View style={styles.card} testID="wizard-step-5">
+      {contentStep === 5 ? (
+        <View style={styles.card} testID={`wizard-step-${step}`}>
           <SectionTitle
             title="Floor plan"
             body="Upload one image and review the default Living zone overlay."
@@ -640,8 +751,8 @@ export default function ListingWizardScreen() {
         </View>
       ) : null}
 
-      {step === 6 ? (
-        <View style={styles.card} testID="wizard-step-6">
+      {contentStep === 6 ? (
+        <View style={styles.card} testID={`wizard-step-${step}`}>
           <SectionTitle title="Rental terms" />
           <View style={styles.formGrid}>
             <LabeledInput
@@ -698,8 +809,8 @@ export default function ListingWizardScreen() {
         </View>
       ) : null}
 
-      {step === 7 ? (
-        <View style={styles.card} testID="wizard-step-7">
+      {contentStep === 7 ? (
+        <View style={styles.card} testID={`wizard-step-${step}`}>
           <SectionTitle title="Review" />
           <View style={styles.reviewGrid}>
             <ReviewRow label="Title" value={draft.title} />
@@ -760,7 +871,7 @@ export default function ListingWizardScreen() {
         >
           <Text style={styles.secondaryButtonText}>Back</Text>
         </Pressable>
-        {step < 7 ? (
+        {step < totalSteps ? (
           <Pressable
             accessibilityRole="button"
             disabled={isBusy}
@@ -822,6 +933,71 @@ function LabeledInput({
         testID={testID}
         value={value}
       />
+    </View>
+  );
+}
+
+function ClientPicker({
+  clients,
+  onSelect,
+  selectedClientId
+}: {
+  clients: SellerClient[];
+  onSelect: (ownerUserId: string) => void;
+  selectedClientId: string;
+}) {
+  if (Platform.OS === "web") {
+    return (
+      <View style={styles.field} testID="client-picker">
+        <Text style={styles.label}>Prior mandate clients</Text>
+        {React.createElement(
+          "select",
+          {
+            "aria-label": "Prior mandate clients",
+            "data-testid": "client-picker",
+            onChange: (event: { currentTarget: { value: string } }) =>
+              onSelect(event.currentTarget.value),
+            style: webSelectStyle,
+            value: selectedClientId
+          },
+          [
+            React.createElement(
+              "option",
+              { key: "empty", value: "" },
+              clients.length > 0 ? "Select a seller" : "No sellers found"
+            ),
+            ...clients.map((client) =>
+              React.createElement(
+                "option",
+                { key: client.id, value: client.id },
+                `${client.email} · ${client.phone ?? "no phone"}`
+              )
+            )
+          ]
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.field} testID="client-picker">
+      <Text style={styles.label}>Prior mandate clients</Text>
+      <View style={styles.suggestions}>
+        {clients.map((client) => (
+          <Pressable
+            accessibilityRole="button"
+            key={client.id}
+            onPress={() => onSelect(client.id)}
+            style={styles.suggestionButton}
+          >
+            <Text style={styles.suggestionTitle}>{client.email}</Text>
+            <Text style={styles.suggestionBody}>{client.phone ?? "No phone"}</Text>
+          </Pressable>
+        ))}
+        {clients.length === 0 ? (
+          <Text style={styles.placeholderText}>No sellers found</Text>
+        ) : null}
+      </View>
     </View>
   );
 }

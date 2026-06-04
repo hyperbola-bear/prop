@@ -1,4 +1,4 @@
-import type { OnemapSuggestion } from "@proppy/shared/api-client";
+import type { CreateListingInput, OnemapSuggestion } from "@proppy/shared/api-client";
 
 export const FLAT_TYPES = [
   "1-room",
@@ -25,12 +25,17 @@ export type WizardPhoto = {
   sortOrder: number;
 };
 
+export type MandateVia = "agent_mandate" | "agent_no_mandate" | "";
+
 export type ListingDraft = {
   id?: string;
   status?: string;
   propertyType: "hdb" | "";
   title: string;
   description: string;
+  ownerUserId: string;
+  freeformSellerEmail: string;
+  mandateVia: MandateVia;
   block: string;
   street: string;
   postal: string;
@@ -64,6 +69,9 @@ export function blankListingDraft(): ListingDraft {
     propertyType: "hdb",
     title: "HDB rental",
     description: "",
+    ownerUserId: "",
+    freeformSellerEmail: "",
+    mandateVia: "",
     block: "",
     street: "",
     postal: "",
@@ -100,6 +108,26 @@ export function listingWizardReducer(
 
 export function dollarsToCents(value: string): number {
   return Math.round(Number(value || "0") * 100);
+}
+
+export function buildCreateListingPayload(
+  draft: ListingDraft,
+  isAgent: boolean
+): CreateListingInput {
+  const payload: CreateListingInput = {
+    title: draft.title || "HDB rental",
+    description: draft.description,
+    priceSgd: dollarsToCents(draft.monthlyRent),
+    propertyType: "hdb",
+    listingType: "rental"
+  };
+
+  if (isAgent && draft.ownerUserId) {
+    payload.ownerUserId = draft.ownerUserId;
+    payload.mandateVia = draft.mandateVia || "agent_mandate";
+  }
+
+  return payload;
 }
 
 export function missingFieldsForDraft(draft: ListingDraft): string[] {

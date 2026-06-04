@@ -3,7 +3,7 @@ import { and, eq, ilike, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { userRoles, users } from "../../../../../../packages/db/schema";
 import { db } from "../../../../lib/db";
-import { ForbiddenError, jsonResponse, mapError, requireAuth } from "../../../../lib/route-helpers";
+import { ForbiddenError, jsonResponse, mapError, optionsResponse, requireAuth } from "../../../../lib/route-helpers";
 
 const createClientSchema = z.object({
   email: z.email()
@@ -76,4 +76,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return mapError(error);
   }
+}
+
+export function OPTIONS() {
+  return optionsResponse();
 }

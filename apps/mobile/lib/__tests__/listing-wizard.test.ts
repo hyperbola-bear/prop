@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   blankListingDraft,
+  buildCreateListingPayload,
   dollarsToCents,
   listingWizardReducer,
   missingFieldsForDraft,
@@ -74,5 +75,36 @@ describe("mobile listing wizard state", () => {
   it("converts dollar inputs to integer cents", () => {
     expect(dollarsToCents("2800")).toBe(280000);
     expect(dollarsToCents("2800.55")).toBe(280055);
+  });
+
+  it("adds owner and mandate fields to agent create payloads", () => {
+    const sellerId = "2d15521a-0b97-4188-b391-3e4d26689e15";
+    const draft = listingWizardReducer(blankListingDraft(), {
+      type: "patch",
+      patch: {
+        ownerUserId: sellerId,
+        mandateVia: "agent_mandate",
+        monthlyRent: "3200"
+      }
+    });
+
+    expect(buildCreateListingPayload(draft, true)).toMatchObject({
+      ownerUserId: sellerId,
+      mandateVia: "agent_mandate",
+      priceSgd: 320000
+    });
+  });
+
+  it("omits mandate fields from non-agent create payloads", () => {
+    const draft = listingWizardReducer(blankListingDraft(), {
+      type: "patch",
+      patch: {
+        ownerUserId: "2d15521a-0b97-4188-b391-3e4d26689e15",
+        mandateVia: "agent_mandate"
+      }
+    });
+
+    expect(buildCreateListingPayload(draft, false)).not.toHaveProperty("ownerUserId");
+    expect(buildCreateListingPayload(draft, false)).not.toHaveProperty("mandateVia");
   });
 });

@@ -72,6 +72,15 @@ const meResponseSchema = z.object({
 });
 const rolesResponseSchema = z.object({ roles: z.array(z.string()) });
 const okResponseSchema = z.object({ ok: z.boolean() });
+const sellerClientSchema = z.object({
+  id: z.uuid(),
+  email: z.string().email(),
+  phone: z.string().nullable(),
+  name: z.string().nullable()
+});
+const sellerClientsResponseSchema = z.object({
+  items: z.array(sellerClientSchema)
+});
 const createListingResponseSchema = z.object({
   id: z.uuid(),
   status: z.string().min(1)
@@ -136,6 +145,7 @@ export type ResolveAddressInput = z.infer<typeof resolveAddressInputSchema>;
 export type OnemapSuggestion = z.infer<typeof onemapSuggestionSchema>;
 
 export type AuthenticatedUser = z.infer<typeof meResponseSchema>;
+export type SellerClient = z.infer<typeof sellerClientSchema>;
 
 async function request<T>(
   fetcher: Fetcher,
@@ -390,6 +400,28 @@ export function createApiClient(options: ApiClientOptions = {}) {
           apiUrl(baseUrl, `/api/me/listings/${encodeURIComponent(id)}`),
           ownedListingDetailSchema,
           {},
+          getToken
+        );
+      },
+      clients(query = "") {
+        const params = new URLSearchParams();
+        if (query) {
+          params.set("q", query);
+        }
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/me/clients", params),
+          sellerClientsResponseSchema,
+          {},
+          getToken
+        );
+      },
+      createClient(input: { email: string }) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, "/api/me/clients"),
+          sellerClientSchema,
+          jsonPost(input),
           getToken
         );
       }
