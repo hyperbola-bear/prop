@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { closeDb } from "./db";
 import { startHealthServer } from "./health";
 import { startEmailQueueDrain } from "./tasks/email";

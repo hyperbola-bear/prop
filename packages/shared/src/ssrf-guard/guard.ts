@@ -54,11 +54,25 @@ function isPrivateIpv6(address: string): boolean {
     return isPrivateIpv4(mappedIpv4[1]);
   }
 
+  const hexMappedIpv4 = normalized.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (hexMappedIpv4?.[1] && hexMappedIpv4[2]) {
+    const high = Number.parseInt(hexMappedIpv4[1], 16);
+    const low = Number.parseInt(hexMappedIpv4[2], 16);
+    if (Number.isInteger(high) && Number.isInteger(low)) {
+      return isPrivateIpv4(
+        `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`
+      );
+    }
+  }
+
+  const firstHextet = Number.parseInt(normalized.split(":")[0] ?? "", 16);
+  const isIpv6UniqueLocal = firstHextet >= 0xfc00 && firstHextet <= 0xfdff;
+  const isIpv6LinkLocal = firstHextet >= 0xfe80 && firstHextet <= 0xfebf;
+
   return (
     normalized === "::1" ||
-    normalized.startsWith("fc") ||
-    normalized.startsWith("fd") ||
-    normalized.startsWith("fe80:")
+    isIpv6UniqueLocal ||
+    isIpv6LinkLocal
   );
 }
 

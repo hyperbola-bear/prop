@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { assertUrlSafe, SsrfError } from "../guard";
+import { assertUrlSafe, isPrivateIpAddress, SsrfError } from "../guard";
 
 vi.mock("node:dns/promises", () => ({
   lookup: vi.fn()
@@ -25,7 +25,8 @@ describe("assertUrlSafe", () => {
     ["RFC1918 172.16/12", "http://172.16.0.1/"],
     ["RFC1918 192.168/16", "http://192.168.1.1/"],
     ["IPv6 loopback", "http://[::1]/"],
-    ["IPv6 link-local", "http://[fe80::1]/"]
+    ["IPv6 link-local", "http://[fe80::1]/"],
+    ["IPv4-mapped IPv6 private literal", "http://[::ffff:10.0.0.1]/"]
   ])("blocks %s URL literals", async (_name, rawUrl) => {
     await expect(assertUrlSafe(rawUrl)).rejects.toMatchObject({
       code: "private_address_blocked",
@@ -73,5 +74,50 @@ describe("assertUrlSafe", () => {
       code: "private_address_blocked",
       status: 403
     });
+  });
+
+  it.each(["fe80::1", "fe90::1", "feab::1", "febf::1"])(
+    "blocks whitelisted hosts if DNS resolves to IPv6 link-local %s",
+    async (address) => {
+      lookupMock.mockResolvedValueOnce(lookupResult(address, 6));
+
+      await expect(assertUrlSafe("https://www.onemap.gov.sg/api/")).rejects.toMatchObject({
+        code: "private_address_blocked",
+        status: 403
+      });
+    }
+  );
+
+  it("blocks whitelisted hosts if DNS resolves to IPv4-mapped private IPv6", async () => {
+    lookupMock.mockResolvedValueOnce(lookupResult("::ffff:10.0.0.1", 6));
+
+    await expect(assertUrlSafe("https://www.onemap.gov.sg/api/")).rejects.toMatchObject({
+      code: "private_address_blocked",
+      status: 403
+    });
+  });
+
+  it.each(["fec0::1", "2001:db8::1"])(
+    "allows whitelisted hosts if DNS resolves to non-link-local IPv6 %s",
+    async (address) => {
+      lookupMock.mockResolvedValueOnce(lookupResult(address, 6));
+
+      await expect(assertUrlSafe("https://www.onemap.gov.sg/api/")).resolves.toMatchObject({
+        hostname: "www.onemap.gov.sg"
+      });
+    }
+  );
+});
+
+describe("isPrivateIpAddress", () => {
+  it.each(["fe80::1", "fe90::1", "feab::1", "febf::1", "::ffff:10.0.0.1"])(
+    "treats %s as private or link-local",
+    (address) => {
+      expect(isPrivateIpAddress(address)).toBe(true);
+    }
+  );
+
+  it.each(["fec0::1", "2001:db8::1"])("does not treat %s as link-local", (address) => {
+    expect(isPrivateIpAddress(address)).toBe(false);
   });
 });
