@@ -74,7 +74,7 @@ export const ownedListingSchema = z.object({
   representedVia: z.string().optional(),
   priceSgd: z.number().int().nonnegative(),
   publishedAt: z.string().nullable().optional(),
-  refreshedAt: z.string().nullable(),
+  refreshedAt: z.string().nullable().optional(),
   rentedAt: z.string().nullable().optional(),
   delistedAt: z.string().nullable().optional(),
   addressId: z.uuid().nullable().optional(),
@@ -91,7 +91,7 @@ export const ownedListingSchema = z.object({
   leaseMonths: z.number().int().nullable().optional(),
   availableFrom: z.string().nullable().optional(),
   furnishing: z.string().nullable().optional(),
-  photoCount: z.number().int().nonnegative()
+  photoCount: z.number().int().nonnegative().optional()
 });
 
 export const ownedListingsResponseSchema = z.object({
