@@ -27,6 +27,12 @@ import type {
   CreateEnquiryInput,
   CreateReportInput
 } from "../schemas/messaging";
+import {
+  agentProfileResponseSchema,
+  agentReviewSchema,
+  type AgentProfileResponse,
+  type AgentReviewInput
+} from "../schemas/agents";
 import type {
   ListingDetail,
   ListingsResponse,
@@ -136,6 +142,10 @@ const markConversationReadResponseSchema = z.object({
 const createReportResponseSchema = z.object({
   id: z.uuid(),
   status: z.string().min(1)
+});
+const createAgentReviewResponseSchema = z.object({
+  id: z.uuid(),
+  reviewType: z.enum(["verified", "unverified"])
 });
 const sellerClientSchema = z.object({
   id: z.uuid(),
@@ -718,6 +728,26 @@ export function createApiClient(options: ApiClientOptions = {}) {
           apiUrl(baseUrl, "/api/reports"),
           createReportResponseSchema,
           jsonPost(input),
+          getToken
+        );
+      }
+    },
+    agents: {
+      get(id: string): Promise<AgentProfileResponse> {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/agents/${encodeURIComponent(id)}`),
+          agentProfileResponseSchema,
+          {},
+          getToken
+        );
+      },
+      review(id: string, input: AgentReviewInput) {
+        return request(
+          fetcher,
+          apiUrl(baseUrl, `/api/agents/${encodeURIComponent(id)}/reviews`),
+          createAgentReviewResponseSchema,
+          jsonPost(agentReviewSchema.parse(input)),
           getToken
         );
       }

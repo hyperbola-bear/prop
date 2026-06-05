@@ -101,6 +101,12 @@ export default function ListingDetailScreen() {
             {formatListingPrice(listing.price_sgd)}
           </Text>
           <Text style={styles.priceLabel}>Monthly rent</Text>
+          {listing.agent_or_landlord.type === "agent" &&
+          listing.agent_or_landlord.verified ? (
+            <Text style={styles.agentBadge} testID="listing-agent-badge">
+              Agent: {listing.agent_or_landlord.name} ✓ CEA Verified
+            </Text>
+          ) : null}
           <View style={styles.definitionList}>
             <DetailRow label="Flat type" testID="listing-flat-type">
               {listing.flat_type}
@@ -230,6 +236,17 @@ const styles = StyleSheet.create({
   priceLabel: {
     color: "#64748b",
     fontSize: 14
+  },
+  agentBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "#ccfbf1",
+    borderRadius: 999,
+    color: "#0f766e",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6
   },
   definitionList: {
     gap: 0,

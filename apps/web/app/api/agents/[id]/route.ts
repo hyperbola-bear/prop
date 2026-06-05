@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
-import { and, count, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   agentProfiles,
+  agentReviews,
   enquiries,
   listings,
   users
@@ -79,6 +80,20 @@ export async function GET(_request: NextRequest, context: AgentRouteContext) {
 
     const p50Minutes = numericOrNull(stats?.p50Minutes);
     const p90Minutes = numericOrNull(stats?.p90Minutes);
+    const reviews = await db
+      .select({
+        id: agentReviews.id,
+        stars: agentReviews.stars,
+        body: agentReviews.body,
+        reviewType: agentReviews.reviewType,
+        reviewerName: users.name,
+        createdAt: agentReviews.createdAt
+      })
+      .from(agentReviews)
+      .innerJoin(users, eq(users.id, agentReviews.reviewerUserId))
+      .where(and(eq(agentReviews.agentUserId, agentId), isNull(agentReviews.deletedAt), isNull(users.deletedAt)))
+      .orderBy(desc(agentReviews.createdAt));
+
     const body = agentProfileResponseSchema.parse({
       id: profile.id,
       name: profile.name,
@@ -93,7 +108,11 @@ export async function GET(_request: NextRequest, context: AgentRouteContext) {
         p50: p50Minutes,
         p90: p90Minutes
       },
-      verified: Boolean(profile.verifiedAt)
+      verified: Boolean(profile.verifiedAt),
+      reviews: reviews.map((review) => ({
+        ...review,
+        createdAt: review.createdAt?.toISOString() ?? null
+      }))
     });
 
     return jsonResponse(body);
