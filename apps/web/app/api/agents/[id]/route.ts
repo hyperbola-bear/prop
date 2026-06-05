@@ -35,7 +35,7 @@ export async function GET(_request: NextRequest, context: AgentRouteContext) {
       .select({
         id: users.id,
         name: users.name,
-        photoRef: ************************,
+        photoRef: agentProfiles.photoS3Key,
         bio: agentProfiles.bio,
         specialties: agentProfiles.specialties,
         languages: agentProfiles.languages,
