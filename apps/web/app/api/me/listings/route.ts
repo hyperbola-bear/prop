@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
         ownerUserId: listings.ownerUserId,
         agentUserId: listings.agentUserId,
         representedVia: listings.representedVia,
+        sellerOwnershipVerified: listings.sellerOwnershipVerified,
         priceSgd: listings.priceSgd,
         publishedAt: listings.publishedAt,
         refreshedAt: listings.refreshedAt,

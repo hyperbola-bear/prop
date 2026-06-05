@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
+  agentProfiles,
   addresses,
   favorites,
   listingHdb,
@@ -429,7 +430,9 @@ export async function getPublicListingDetail(id: string): Promise<ListingDetail 
       ownerUserId: listings.ownerUserId,
       ownerName: owner.name,
       agentUserId: listings.agentUserId,
-      agentName: agent.name
+      agentName: agent.name,
+      agentVerifiedAt: agentProfiles.verifiedAt,
+      sellerOwnershipVerified: listings.sellerOwnershipVerified
     })
     .from(listings)
     .innerJoin(addresses, eq(listings.addressId, addresses.id))
@@ -437,6 +440,7 @@ export async function getPublicListingDetail(id: string): Promise<ListingDetail 
     .innerJoin(listingHdb, eq(listingHdb.listingId, listings.id))
     .innerJoin(owner, eq(listings.ownerUserId, owner.id))
     .leftJoin(agent, eq(listings.agentUserId, agent.id))
+    .leftJoin(agentProfiles, eq(agentProfiles.userId, listings.agentUserId))
     .where(and(eq(listings.id, id), ...publicListingConditions({ sort: "newest", limit: 1, cursor: null })))
     .limit(1);
 
@@ -447,14 +451,20 @@ export async function getPublicListingDetail(id: string): Promise<ListingDetail 
   const photoMap = await photosForListings([row.id]);
   const agentOrLandlord =
     row.agentUserId && row.agentName
-      ? { id: row.agentUserId, name: row.agentName, type: "agent" as const }
+      ? {
+          id: row.agentUserId,
+          name: row.agentName,
+          type: "agent" as const,
+          verified: Boolean(row.agentVerifiedAt)
+        }
       : { id: row.ownerUserId, name: row.ownerName, type: "landlord" as const };
 
   return {
     ...toSummary(row, photoMap.get(row.id) ?? []),
     description: row.description ?? "",
     floor_plan: null,
-    agent_or_landlord: agentOrLandlord
+    agent_or_landlord: agentOrLandlord,
+    seller_ownership_verified: row.sellerOwnershipVerified
   };
 }
 

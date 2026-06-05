@@ -38,14 +38,16 @@ export const listingSummarySchema = z.object({
 export const agentOrLandlordSchema = z.object({
   id: z.uuid(),
   name: z.string().min(1),
-  type: z.enum(["agent", "landlord"])
+  type: z.enum(["agent", "landlord"]),
+  verified: z.boolean().optional()
 });
 
 export const listingDetailSchema = listingSummarySchema.extend({
   description: z.string(),
   photos: z.array(listingPhotoSchema),
   floor_plan: z.null(),
-  agent_or_landlord: agentOrLandlordSchema
+  agent_or_landlord: agentOrLandlordSchema,
+  seller_ownership_verified: z.boolean().optional()
 });
 
 export const listingsQuerySchema = z
@@ -213,6 +215,7 @@ export const ownedListingSchema = z.object({
   ownerUserId: z.uuid().optional(),
   agentUserId: z.uuid().nullable().optional(),
   representedVia: z.string().optional(),
+  sellerOwnershipVerified: z.boolean().optional(),
   priceSgd: z.number().int().nonnegative(),
   publishedAt: z.string().nullable().optional(),
   refreshedAt: z.string().nullable().optional(),

@@ -97,6 +97,22 @@ export function ListingDetailView({ id }: { id: string }) {
             {formatSGD(listing.price_sgd)}
           </p>
           <p className="mt-2 text-sm text-slate-600">Monthly rent</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {listing.agent_or_landlord.type === "agent" && listing.agent_or_landlord.verified ? (
+              <a
+                data-testid="listing-agent-badge"
+                href={`/agents/${listing.agent_or_landlord.id}`}
+                className="rounded-full bg-teal-100 px-3 py-1 text-sm font-bold text-teal-800"
+              >
+                Agent: {listing.agent_or_landlord.name} ✓ CEA Verified
+              </a>
+            ) : null}
+            {listing.seller_ownership_verified ? (
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-bold text-emerald-800">
+                Verified owner
+              </span>
+            ) : null}
+          </div>
           <dl className="mt-6 grid gap-4 text-sm">
             <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-4">
               <dt className="text-slate-600">Flat type</dt>

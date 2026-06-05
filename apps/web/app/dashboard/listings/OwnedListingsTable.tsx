@@ -7,6 +7,7 @@ type OwnedListing = {
   id: string;
   title: string;
   status: string;
+  sellerOwnershipVerified?: boolean;
   priceSgd: number;
   block: string | null;
   street: string | null;
@@ -98,6 +99,9 @@ export function OwnedListingsTable() {
                 <div className="flex flex-wrap gap-2">
                   <a href={`/listings/${listing.id}/edit`} className="rounded-full border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">
                     Edit
+                  </a>
+                  <a href={`/dashboard/listings/${listing.id}/verify-ownership`} className="rounded-full border border-teal-200 px-3 py-1.5 font-semibold text-teal-700 hover:bg-teal-50">
+                    {listing.sellerOwnershipVerified ? "Owner verified" : "Verify ownership"}
                   </a>
                   <button disabled={busyId === listing.id} onClick={() => void runAction(listing.id, "pause")} className="rounded-full border border-slate-300 px-3 py-1.5 font-semibold text-slate-700 hover:bg-slate-50">
                     Pause
