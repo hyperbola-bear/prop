@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   agentProfiles,
   agentReviews,
+  conversations,
   messages,
   users
 } from "../../../../../../../packages/db/schema";
@@ -34,11 +35,13 @@ async function hasTwoSidedConversation(reviewerId: string, agentId: string): Pro
   const [row] = await db
     .select({ conversationId: reviewerMessage.conversationId })
     .from(reviewerMessage)
+    .innerJoin(conversations, eq(conversations.id, reviewerMessage.conversationId))
     .innerJoin(agentMessage, eq(agentMessage.conversationId, reviewerMessage.conversationId))
     .where(
       and(
         eq(reviewerMessage.senderUserId, reviewerId),
         eq(agentMessage.senderUserId, agentId),
+        isNull(conversations.deletedAt),
         isNull(reviewerMessage.deletedAt),
         isNull(agentMessage.deletedAt)
       )

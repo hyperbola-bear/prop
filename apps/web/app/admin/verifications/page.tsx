@@ -154,7 +154,14 @@ export default async function AdminVerificationsPage() {
     })
     .from(agentProfiles)
     .innerJoin(users, eq(users.id, agentProfiles.userId))
-    .where(and(isNull(agentProfiles.verifiedAt), isNull(agentProfiles.deletedAt), isNull(users.deletedAt)))
+    .where(
+      and(
+        isNull(agentProfiles.verifiedAt),
+        eq(agentProfiles.ceaStatus, "pending"),
+        isNull(agentProfiles.deletedAt),
+        isNull(users.deletedAt)
+      )
+    )
     .orderBy(asc(agentProfiles.createdAt));
 
   return (
