@@ -1,4 +1,7 @@
+import { and, eq, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { agentProfiles } from "../../../../packages/db/schema";
+import { db } from "../../lib/db";
 import { currentSessionUser } from "../../lib/server-auth";
 import { AddSellerRoleButton } from "./AddSellerRoleButton";
 
@@ -11,6 +14,14 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
+  const [agentProfile] = user.roles.includes("agent")
+    ? await db
+        .select({ verifiedAt: agentProfiles.verifiedAt })
+        .from(agentProfiles)
+        .where(and(eq(agentProfiles.userId, user.id), isNull(agentProfiles.deletedAt)))
+        .limit(1)
+    : [];
+
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-6 py-12">
       <p className="text-sm font-semibold uppercase tracking-wide text-proppy-primary">
@@ -19,6 +30,17 @@ export default async function ProfilePage() {
       <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
         Your profile
       </h1>
+
+      {user.roles.includes("agent") && agentProfile?.verifiedAt === null ? (
+        <div className="mt-6">
+          <span
+            data-testid="cea-pending-badge"
+            className="rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-800"
+          >
+            CEA verification pending
+          </span>
+        </div>
+      ) : null}
 
       <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <dl className="grid gap-5">
