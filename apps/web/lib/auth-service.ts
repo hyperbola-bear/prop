@@ -4,6 +4,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import {
   agentProfiles,
   buyerProfiles,
+  ceaRegisterSnapshots,
   emailQueue,
   sellerProfiles,
   userRoles,
@@ -147,9 +148,26 @@ export async function createUser(input: {
     }
 
     if (role === "agent") {
+      const [ceaSnapshot] = input.cea_no
+        ? await tx
+            .select({
+              agencyName: ceaRegisterSnapshots.agencyName,
+              agencyLicenceNo: ceaRegisterSnapshots.agencyLicenceNo,
+              status: ceaRegisterSnapshots.status
+            })
+            .from(ceaRegisterSnapshots)
+            .where(eq(ceaRegisterSnapshots.registrationNo, input.cea_no))
+            .orderBy(desc(ceaRegisterSnapshots.snapshotAt))
+            .limit(1)
+        : [];
+
       await tx.insert(agentProfiles).values({
         userId: inserted.id,
         ceaRegistrationNo: input.cea_no ?? `PENDING-${inserted.id}`,
+        ceaStatus: ceaSnapshot?.status ?? null,
+        agencyName: ceaSnapshot?.agencyName ?? null,
+        agencyLicenceNo: ceaSnapshot?.agencyLicenceNo ?? null,
+        verifiedAt: ceaSnapshot ? now : null,
         updatedAt: now
       });
     }

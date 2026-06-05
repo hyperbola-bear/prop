@@ -35,8 +35,7 @@ export const agentProfiles = pgTable(
     ...lifecycleColumns()
   },
   (table) => [
-    uniqueIndex("agent_profiles_user_unique").on(table.userId),
-    uniqueIndex("agent_profiles_cea_registration_unique").on(table.ceaRegistrationNo)
+    uniqueIndex("agent_profiles_user_unique").on(table.userId)
   ]
 );
 
