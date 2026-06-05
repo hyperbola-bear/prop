@@ -72,10 +72,16 @@ async function createPatchableListing(ownerEmail = "landlord1@proppy.test") {
 describe("GET /api/listings/:id", () => {
   it("returns full detail for a public listing", async () => {
     const listResponse = await getListings(
-      new NextRequest("http://localhost:3100/api/listings?limit=1")
+      new NextRequest("http://localhost:3100/api/listings?limit=20")
     );
     const listBody = await listResponse.json();
-    const id = listBody.items[0].id;
+    const publicListing = listBody.items.find((item: { photos?: unknown[] }) => {
+      return Array.isArray(item.photos) && item.photos.length >= 3;
+    });
+    if (!publicListing) {
+      throw new Error("Expected at least one public listing with seeded photos");
+    }
+    const id = publicListing.id;
 
     const response = await getListing(
       new NextRequest(`http://localhost:3100/api/listings/${id}`),

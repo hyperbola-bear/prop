@@ -164,7 +164,7 @@ export async function createUser(input: {
       await tx.insert(agentProfiles).values({
         userId: inserted.id,
         ceaRegistrationNo: input.cea_no ?? `PENDING-${inserted.id}`,
-        ceaStatus: ceaSnapshot?.status ?? null,
+        ceaStatus: ceaSnapshot?.status ?? "pending",
         agencyName: ceaSnapshot?.agencyName ?? null,
         agencyLicenceNo: ceaSnapshot?.agencyLicenceNo ?? null,
         verifiedAt: ceaSnapshot ? now : null,

@@ -51,7 +51,8 @@ export default async function AgentProfilePage({ params }: AgentPageProps) {
       bio: agentProfiles.bio,
       specialties: agentProfiles.specialties,
       languages: agentProfiles.languages,
-      verifiedAt: agentProfiles.verifiedAt
+      verifiedAt: agentProfiles.verifiedAt,
+      ceaStatus: agentProfiles.ceaStatus
     })
     .from(agentProfiles)
     .innerJoin(users, eq(users.id, agentProfiles.userId))
@@ -129,6 +130,22 @@ export default async function AgentProfilePage({ params }: AgentPageProps) {
             {profile.verifiedAt ? (
               <span className="rounded-full bg-teal-100 px-3 py-1 text-sm font-bold text-teal-800">
                 Verified
+              </span>
+            ) : null}
+            {!profile.verifiedAt && profile.ceaStatus === "pending" ? (
+              <span
+                data-testid="cea-pending-badge"
+                className="rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-800"
+              >
+                CEA verification pending
+              </span>
+            ) : null}
+            {!profile.verifiedAt && profile.ceaStatus === "rejected" ? (
+              <span
+                data-testid="cea-rejected-badge"
+                className="rounded-full bg-red-100 px-3 py-1 text-sm font-bold text-red-800"
+              >
+                CEA verification rejected
               </span>
             ) : null}
           </div>

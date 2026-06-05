@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { authErrorMessage, validateSignupFields } from "./auth-ui";
+import {
+  authErrorMessage,
+  shouldShowCeaRegistrationInput,
+  validateSignupFields
+} from "./auth-ui";
 
 describe("validateSignupFields", () => {
   it("reports PDPA consent when the signup checkbox is not ticked", () => {
@@ -23,5 +27,13 @@ describe("authErrorMessage", () => {
         "Fallback"
       )
     ).toBe("Invalid email or password");
+  });
+});
+
+describe("shouldShowCeaRegistrationInput", () => {
+  it("shows the CEA registration field only for agent signup role", () => {
+    expect(shouldShowCeaRegistrationInput("agent")).toBe(true);
+    expect(shouldShowCeaRegistrationInput("buyer")).toBe(false);
+    expect(shouldShowCeaRegistrationInput("seller")).toBe(false);
   });
 });

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { authErrorMessage, type AuthFormErrors, validateSignupFields } from "../../lib/auth-ui";
+import {
+  authErrorMessage,
+  shouldShowCeaRegistrationInput,
+  type AuthFormErrors,
+  validateSignupFields
+} from "../../lib/auth-ui";
 
 type MyInfoPayload = {
   name: string;
@@ -45,6 +50,7 @@ export function SignupForm({
   const [errors, setErrors] = useState<AuthFormErrors>({});
   const [formError, setFormError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedRole, setSelectedRole] = useState("buyer");
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,12 +71,15 @@ export function SignupForm({
     setFormError("");
 
     const phone = String(formData.get("phone") ?? "");
+    const role = String(formData.get("role") ?? "buyer");
+    const ceaNo = String(formData.get("cea_no") ?? "").trim();
     const body = {
       email: String(formData.get("email") ?? ""),
       password,
       phone,
-      role: String(formData.get("role") ?? "buyer"),
+      role,
       pdpaConsent,
+      ...(role === "agent" && ceaNo ? { cea_no: ceaNo } : {}),
       ...(myinfoPayload
         ? {
             name: String(formData.get("name") ?? myinfoPayload.name),
@@ -196,6 +205,8 @@ export function SignupForm({
           id="signup-role"
           name="role"
           required
+          value={selectedRole}
+          onChange={(event) => setSelectedRole(event.target.value)}
           className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950"
         >
           <option value="buyer">buyer/renter</option>
@@ -203,6 +214,27 @@ export function SignupForm({
           <option value="agent">agent</option>
         </select>
       </div>
+
+      {shouldShowCeaRegistrationInput(selectedRole) ? (
+        <div>
+          <label htmlFor="signup-cea-no" className="block text-sm font-semibold text-slate-700">
+            CEA registration number (optional)
+          </label>
+          <input
+            id="signup-cea-no"
+            data-testid="cea-no-input"
+            name="cea_no"
+            type="text"
+            autoComplete="off"
+            placeholder="e.g. R012345A"
+            className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-950"
+          />
+          <p className="mt-2 text-sm text-slate-600">
+            We will verify matching CEA numbers immediately; missing or unmatched numbers stay pending.
+          </p>
+          {errors.cea_no ? <p className="mt-2 text-sm text-red-700">{errors.cea_no}</p> : null}
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
         <div className="flex items-start gap-3">

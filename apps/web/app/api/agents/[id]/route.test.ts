@@ -151,6 +151,7 @@ describe("M5 agents, verification, admin, and PDPA APIs", () => {
       .from(agentProfiles)
       .where(eq(agentProfiles.userId, invalidBody.userId));
     expect(invalidProfile?.verifiedAt).toBeNull();
+    expect(invalidProfile?.ceaStatus).toBe("pending");
     expect(invalidProfile?.agencyName).toBeNull();
   });
 

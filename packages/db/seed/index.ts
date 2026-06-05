@@ -953,6 +953,94 @@ async function seedSavedSearchAndFavorites(
   }
 }
 
+async function seedAgentResponseTimeFixtures(
+  sql: postgres.Sql,
+  userIds: Map<string, string>,
+  listingIds: string[]
+): Promise<void> {
+  const agentId = userIds.get("agent1@proppy.test");
+  const renter1Id = userIds.get("renter1@proppy.test");
+  const renter2Id = userIds.get("renter2@proppy.test");
+  const agentListingIds = listings
+    .map((listing, index) => ({ listing, listingId: listingIds[index] }))
+    .filter((entry): entry is { listing: ListingSeed; listingId: string } =>
+      entry.listing.agentEmail === "agent1@proppy.test" && Boolean(entry.listingId)
+    )
+    .slice(0, 2);
+
+  if (!agentId || !renter1Id || !renter2Id || agentListingIds.length < 2) {
+    throw new Error("Agent response-time fixtures could not be created");
+  }
+
+  const [firstAgentListing, secondAgentListing] = agentListingIds as [
+    { listing: ListingSeed; listingId: string },
+    { listing: ListingSeed; listingId: string },
+    ...{ listing: ListingSeed; listingId: string }[]
+  ];
+
+  const responseFixtures = [
+    {
+      fixtureNo: 1,
+      listingId: firstAgentListing.listingId,
+      buyerId: renter1Id,
+      createdAt: "2026-02-01T10:00:00.000Z",
+      responseMinutes: 30
+    },
+    {
+      fixtureNo: 2,
+      listingId: secondAgentListing.listingId,
+      buyerId: renter2Id,
+      createdAt: "2026-02-02T10:00:00.000Z",
+      responseMinutes: 90
+    }
+  ];
+
+  for (const fixture of responseFixtures) {
+    const conversationId = stableUuid(`conversation:agent1-response:${fixture.fixtureNo}`);
+    const enquiryId = stableUuid(`enquiry:agent1-response:${fixture.fixtureNo}`);
+
+    await sql`
+      insert into conversations (
+        id, listing_id, buyer_user_id, seller_user_id, last_message_at, created_at, updated_at
+      )
+      values (
+        ${conversationId},
+        ${fixture.listingId},
+        ${fixture.buyerId},
+        ${agentId},
+        ${fixture.createdAt}::timestamptz + (${fixture.responseMinutes} || ' minutes')::interval,
+        ${fixture.createdAt},
+        now()
+      )
+      on conflict (listing_id, buyer_user_id, seller_user_id) do update set
+        last_message_at = excluded.last_message_at,
+        updated_at = now()
+    `;
+
+    await sql`
+      insert into enquiries (
+        id, listing_id, buyer_user_id, conversation_id, created_at, first_response_at, updated_at
+      )
+      values (
+        ${enquiryId},
+        ${fixture.listingId},
+        ${fixture.buyerId},
+        ${conversationId},
+        ${fixture.createdAt},
+        ${fixture.createdAt}::timestamptz + (${fixture.responseMinutes} || ' minutes')::interval,
+        now()
+      )
+      on conflict (id) do update set
+        listing_id = excluded.listing_id,
+        buyer_user_id = excluded.buyer_user_id,
+        conversation_id = excluded.conversation_id,
+        created_at = excluded.created_at,
+        first_response_at = excluded.first_response_at,
+        updated_at = now()
+    `;
+  }
+}
+
 async function main(): Promise<void> {
   const databaseUrl = env("DATABASE_URL", "");
   if (!databaseUrl) {
@@ -984,6 +1072,7 @@ async function main(): Promise<void> {
     }
 
     await seedSavedSearchAndFavorites(sql, userIds, listingIds);
+    await seedAgentResponseTimeFixtures(sql, userIds, listingIds);
 
     const [counts] = await sql<{
       users: string;
@@ -993,6 +1082,7 @@ async function main(): Promise<void> {
       mrt_rows: string;
       saved_searches: string;
       favorites: string;
+      enquiries_with_responses: string;
     }[]>`
       select
         (select count(*) from users) as users,
@@ -1001,7 +1091,8 @@ async function main(): Promise<void> {
         (select count(*) from external.cea_register_snapshots) as cea_rows,
         (select count(*) from external.onemap_amenities where amenity_type = 'MRT') as mrt_rows,
         (select count(*) from saved_searches) as saved_searches,
-        (select count(*) from favorites) as favorites
+        (select count(*) from favorites) as favorites,
+        (select count(*) from enquiries where first_response_at is not null) as enquiries_with_responses
     `;
     console.log("Seed complete", counts);
   } finally {

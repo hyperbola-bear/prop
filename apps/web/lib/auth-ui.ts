@@ -21,6 +21,10 @@ export function validateSignupFields(input: {
   return errors;
 }
 
+export function shouldShowCeaRegistrationInput(role: string): boolean {
+  return role === "agent";
+}
+
 export function authErrorMessage(payload: unknown, fallback: string): string {
   if (
     typeof payload === "object" &&
