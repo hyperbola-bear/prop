@@ -7,7 +7,7 @@ import { GET, POST } from "./route";
 import { signSessionToken } from "../../../lib/auth-context";
 import { db, sqlClient } from "../../../lib/db";
 import { clearRateLimits } from "../../../lib/rate-limit";
-import { addresses, listings, users } from "../../../../../packages/db/schema";
+import { addresses, listingPhotos, listings, users } from "../../../../../packages/db/schema";
 import type { ListingsResponse } from "../../../../../packages/shared/src/types";
 
 const insertedListingIds: string[] = [];
@@ -109,6 +109,7 @@ async function createAddressAtTampinesDistance(distanceM: number): Promise<{
 async function createSearchListing(input: {
   addressId: string;
   publishedAt: Date;
+  priceSgd?: number;
   refreshedAt?: Date | null;
   title: string;
 }): Promise<string> {
@@ -141,7 +142,7 @@ async function createSearchListing(input: {
       'owner',
       ${input.title},
       ${description},
-      330000,
+      ${input.priceSgd ?? 330000},
       'month',
       3,
       ${input.publishedAt.toISOString()},
@@ -186,13 +187,30 @@ async function createSearchListing(input: {
     )
   `;
 
+  await db.insert(listingPhotos).values({
+    listingId: listing.id,
+    s3Key: `tests/${listing.id}/cover.jpg`,
+    altText: `${input.title} cover photo`,
+    sortOrder: 0
+  });
+
   return listing.id;
 }
 
 describe("GET /api/listings", () => {
   it("returns a paginated list of public HDB rental listings", async () => {
+    const uniqueTerm = `m5public${randomUUID().replace(/-/g, "")}`;
+    const address = await createAddressAtTampinesDistance(500);
+    for (let index = 0; index < 3; index += 1) {
+      await createSearchListing({
+        addressId: address.id,
+        title: `${uniqueTerm} listing ${index}`,
+        publishedAt: new Date(Date.UTC(2026, 5, 20 - index))
+      });
+    }
+
     const response = await GET(
-      new NextRequest("http://localhost:3100/api/listings?limit=3")
+      new NextRequest(`http://localhost:3100/api/listings?q=${uniqueTerm}&limit=3`)
     );
 
     expect(response.status).toBe(200);
@@ -232,8 +250,20 @@ describe("GET /api/listings", () => {
   });
 
   it("paginates across two pages without gaps or overlap", async () => {
+    const uniqueTerm = `m5pagination${randomUUID().replace(/-/g, "")}`;
+    const address = await createAddressAtTampinesDistance(500);
+    for (let index = 0; index < 6; index += 1) {
+      await createSearchListing({
+        addressId: address.id,
+        title: `${uniqueTerm} listing ${index}`,
+        publishedAt: new Date(Date.UTC(2026, 5, 10 - index))
+      });
+    }
+
     const firstPageResponse = await GET(
-      new NextRequest("http://localhost:3100/api/listings?limit=3")
+      new NextRequest(
+        `http://localhost:3100/api/listings?q=${uniqueTerm}&limit=3`
+      )
     );
     expect(firstPageResponse.status).toBe(200);
     const firstPage = (await firstPageResponse.json()) as ListingsResponse;
@@ -245,7 +275,7 @@ describe("GET /api/listings", () => {
 
     const secondPageResponse = await GET(
       new NextRequest(
-        `http://localhost:3100/api/listings?limit=3&cursor=${encodeURIComponent(firstPage.cursor)}`
+        `http://localhost:3100/api/listings?q=${uniqueTerm}&limit=3&cursor=${encodeURIComponent(firstPage.cursor)}`
       )
     );
     expect(secondPageResponse.status).toBe(200);
@@ -258,7 +288,9 @@ describe("GET /api/listings", () => {
     expect(new Set(combinedIds).size).toBe(combinedIds.length);
 
     const canonicalResponse = await GET(
-      new NextRequest("http://localhost:3100/api/listings?limit=6")
+      new NextRequest(
+        `http://localhost:3100/api/listings?q=${uniqueTerm}&limit=6`
+      )
     );
     expect(canonicalResponse.status).toBe(200);
     const canonicalPage = (await canonicalResponse.json()) as ListingsResponse;
@@ -429,8 +461,21 @@ describe("GET /api/listings", () => {
   });
 
   it("sorts by price ascending with no pagination gaps or overlap", async () => {
+    const uniqueTerm = `m5priceasc${randomUUID().replace(/-/g, "")}`;
+    const address = await createAddressAtTampinesDistance(500);
+    for (const [index, priceSgd] of [410000, 190000, 350000, 230000, 520000, 275000, 310000, 450000].entries()) {
+      await createSearchListing({
+        addressId: address.id,
+        priceSgd,
+        title: `${uniqueTerm} price ${index}`,
+        publishedAt: new Date(Date.UTC(2026, 5, 1 + index))
+      });
+    }
+
     const firstPageResponse = await GET(
-      new NextRequest("http://localhost:3100/api/listings?sort=price_asc&limit=4")
+      new NextRequest(
+        `http://localhost:3100/api/listings?q=${uniqueTerm}&sort=price_asc&limit=4`
+      )
     );
     expect(firstPageResponse.status).toBe(200);
     const firstPage = (await firstPageResponse.json()) as ListingsResponse;
@@ -439,7 +484,7 @@ describe("GET /api/listings", () => {
 
     const secondPageResponse = await GET(
       new NextRequest(
-        `http://localhost:3100/api/listings?sort=price_asc&limit=4&cursor=${encodeURIComponent(
+        `http://localhost:3100/api/listings?q=${uniqueTerm}&sort=price_asc&limit=4&cursor=${encodeURIComponent(
           firstPage.cursor ?? ""
         )}`
       )
@@ -455,7 +500,9 @@ describe("GET /api/listings", () => {
     );
 
     const canonicalResponse = await GET(
-      new NextRequest("http://localhost:3100/api/listings?sort=price_asc&limit=8")
+      new NextRequest(
+        `http://localhost:3100/api/listings?q=${uniqueTerm}&sort=price_asc&limit=8`
+      )
     );
     expect(canonicalResponse.status).toBe(200);
     const canonicalPage = (await canonicalResponse.json()) as ListingsResponse;
@@ -502,6 +549,7 @@ describe("POST /api/listings", () => {
 
     expect(response.status).toBe(201);
     const body = await response.json();
+    insertedListingIds.push(body.id);
     expect(body).toEqual({ id: expect.any(String), status: "draft" });
 
     const [row] = await db.select().from(listings).where(eq(listings.id, body.id));
@@ -543,6 +591,7 @@ describe("POST /api/listings", () => {
 
     expect(response.status).toBe(201);
     const body = await response.json();
+    insertedListingIds.push(body.id);
     const [row] = await db.select().from(listings).where(eq(listings.id, body.id));
     expect(row?.ownerUserId).toBe(seller!.id);
     expect(row?.agentUserId).not.toBeNull();

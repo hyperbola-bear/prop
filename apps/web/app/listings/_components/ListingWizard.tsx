@@ -192,6 +192,14 @@ export function missingFieldsForDraft(draft: ListingDraft): string[] {
   return missing;
 }
 
+export function needsAgentMandateStep(
+  draft: Pick<ListingDraft, "mandateVia" | "ownerUserId">,
+  isAgentNewListing: boolean,
+  requestedStep: number
+): boolean {
+  return isAgentNewListing && requestedStep > 0 && !draft.ownerUserId && !draft.mandateVia;
+}
+
 function buildRentalTermsPatch(draft: ListingDraft): Record<string, unknown> | null {
   const rent = Number(draft.monthlyRent);
   if (Number.isNaN(rent) || rent < 100 || rent > 50000) {
@@ -365,6 +373,12 @@ export function ListingWizard({ user, initialListingId }: WizardProps) {
       localStorage.setItem(storageKey, JSON.stringify(draft));
     }
   }, [draft, storageKey]);
+
+  useEffect(() => {
+    if (needsAgentMandateStep(draft, isAgent && !isEdit, step)) {
+      setStep(0);
+    }
+  }, [draft, isAgent, isEdit, step]);
 
   useEffect(() => {
     if (!isAgent) {

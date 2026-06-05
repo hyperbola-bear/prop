@@ -6,6 +6,7 @@ import {
   listingWizardReducer,
   missingFieldsForDraft,
   movePhoto,
+  needsAgentMandateStep,
   type WizardPhoto
 } from "../listing-wizard";
 
@@ -106,5 +107,18 @@ describe("mobile listing wizard state", () => {
 
     expect(buildCreateListingPayload(draft, false)).not.toHaveProperty("ownerUserId");
     expect(buildCreateListingPayload(draft, false)).not.toHaveProperty("mandateVia");
+  });
+
+  it("requires agent new-listing deep links to visit the mandate step first", () => {
+    expect(needsAgentMandateStep(blankListingDraft(), true, 2)).toBe(true);
+    expect(
+      needsAgentMandateStep(
+        { ...blankListingDraft(), ownerUserId: "2d15521a-0b97-4188-b391-3e4d26689e15", mandateVia: "agent_mandate" },
+        true,
+        2
+      )
+    ).toBe(false);
+    expect(needsAgentMandateStep(blankListingDraft(), false, 2)).toBe(false);
+    expect(needsAgentMandateStep(blankListingDraft(), true, 1)).toBe(false);
   });
 });

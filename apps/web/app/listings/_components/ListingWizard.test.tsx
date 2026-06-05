@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   ListingWizardReview,
   missingFieldsForDraft,
+  needsAgentMandateStep,
   type ListingDraft,
   type WizardPhoto
 } from "./ListingWizard";
@@ -72,5 +73,21 @@ describe("web listing wizard missing-fields review", () => {
     expect(html).toContain("At least 3 photos required");
     expect(html).toContain('data-testid="wizard-publish"');
     expect(html).toContain("disabled");
+  });
+
+  it("keeps agent new listings on the mandate step until owner context is selected", () => {
+    expect(needsAgentMandateStep(completeDraft(), true, 2)).toBe(true);
+    expect(
+      needsAgentMandateStep(
+        completeDraft({
+          mandateVia: "agent_mandate",
+          ownerUserId: "2d15521a-0b97-4188-b391-3e4d26689e15"
+        }),
+        true,
+        2
+      )
+    ).toBe(false);
+    expect(needsAgentMandateStep(completeDraft(), false, 2)).toBe(false);
+    expect(needsAgentMandateStep(completeDraft(), true, 0)).toBe(false);
   });
 });

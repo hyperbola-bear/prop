@@ -1,11 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { GET as getListing, PATCH as patchListing } from "./route";
 import { GET as getListings } from "../route";
 import { signSessionToken } from "../../../../lib/auth-context";
 import { db } from "../../../../lib/db";
 import { listingRental, listings, users } from "../../../../../../packages/db/schema";
+
+const insertedListingIds: string[] = [];
+
+afterEach(async () => {
+  if (insertedListingIds.length > 0) {
+    await db
+      .update(listings)
+      .set({ deletedAt: new Date() })
+      .where(inArray(listings.id, [...insertedListingIds]));
+    insertedListingIds.length = 0;
+  }
+});
 
 async function tokenFor(email: string): Promise<string> {
   const [user] = await db.select().from(users).where(eq(users.email, email));
@@ -22,6 +34,39 @@ function patchRequest(id: string, token: string, body: unknown) {
     },
     body: JSON.stringify(body)
   });
+}
+
+async function createPatchableListing(ownerEmail = "landlord1@proppy.test") {
+  const [owner] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, ownerEmail));
+  if (!owner) throw new Error(`Missing seed user ${ownerEmail}`);
+
+  const [listing] = await db
+    .insert(listings)
+    .values({
+      ownerUserId: owner.id,
+      status: "published",
+      listingType: "rental",
+      propertyType: "hdb",
+      representedVia: "owner",
+      title: `Patch listing ${Date.now()} ${Math.random()}`,
+      priceSgd: 300000n
+    })
+    .returning({ id: listings.id });
+  if (!listing) throw new Error("Failed to create patchable listing");
+  insertedListingIds.push(listing.id);
+
+  await db.insert(listingRental).values({
+    listingId: listing.id,
+    leaseMonths: 12,
+    availableFrom: new Date().toISOString().slice(0, 10),
+    furnishing: "Fully",
+    roomOnly: false
+  });
+
+  return listing.id;
 }
 
 describe("GET /api/listings/:id", () => {
@@ -83,53 +128,37 @@ describe("GET /api/listings/:id", () => {
 describe("PATCH /api/listings/:id", () => {
   it("updates listing price and rental fields for the owner", async () => {
     const token = await tokenFor("landlord1@proppy.test");
-    const [owner] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, "landlord1@proppy.test"));
-    const [listing] = await db
-      .select({ id: listings.id })
-      .from(listings)
-      .where(eq(listings.ownerUserId, owner!.id))
-      .limit(1);
+    const listingId = await createPatchableListing("landlord1@proppy.test");
 
     const response = await patchListing(
-      patchRequest(listing!.id, token, {
+      patchRequest(listingId, token, {
         priceSgd: 333300,
         leaseMonths: 18
       }),
-      { params: Promise.resolve({ id: listing!.id }) }
+      { params: Promise.resolve({ id: listingId }) }
     );
 
     expect(response.status).toBe(200);
     const [row] = await db
       .select({ priceSgd: listings.priceSgd })
       .from(listings)
-      .where(eq(listings.id, listing!.id));
+      .where(eq(listings.id, listingId));
     expect(row?.priceSgd).toBe(333300n);
 
     const [rental] = await db
       .select({ leaseMonths: listingRental.leaseMonths })
       .from(listingRental)
-      .where(eq(listingRental.listingId, listing!.id));
+      .where(eq(listingRental.listingId, listingId));
     expect(rental?.leaseMonths).toBe(18);
   });
 
   it("returns 403 for a non-owner", async () => {
     const token = await tokenFor("landlord2@proppy.test");
-    const [owner] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, "landlord1@proppy.test"));
-    const [listing] = await db
-      .select({ id: listings.id })
-      .from(listings)
-      .where(eq(listings.ownerUserId, owner!.id))
-      .limit(1);
+    const listingId = await createPatchableListing("landlord1@proppy.test");
 
     const response = await patchListing(
-      patchRequest(listing!.id, token, { priceSgd: 444400 }),
-      { params: Promise.resolve({ id: listing!.id }) }
+      patchRequest(listingId, token, { priceSgd: 444400 }),
+      { params: Promise.resolve({ id: listingId }) }
     );
 
     expect(response.status).toBe(403);

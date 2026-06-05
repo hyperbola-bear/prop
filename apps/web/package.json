@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node ../../scripts/forward-signals.mjs next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node ../../scripts/forward-signals.mjs next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"

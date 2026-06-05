@@ -130,6 +130,14 @@ export function buildCreateListingPayload(
   return payload;
 }
 
+export function needsAgentMandateStep(
+  draft: Pick<ListingDraft, "mandateVia" | "ownerUserId">,
+  isAgentNewListing: boolean,
+  requestedStep: number
+): boolean {
+  return isAgentNewListing && requestedStep > 1 && !draft.ownerUserId && !draft.mandateVia;
+}
+
 export function missingFieldsForDraft(draft: ListingDraft): string[] {
   const missing: string[] = [];
   if (!draft.addressId || !draft.blockId) missing.push("Address");

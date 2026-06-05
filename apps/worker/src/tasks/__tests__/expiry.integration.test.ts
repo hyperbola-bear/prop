@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { closeDb, sqlClient } from "../../db";
 import { startEmailQueueDrain } from "../email";
 import { startExpiryTick } from "../expiry";
@@ -36,13 +36,6 @@ async function pollUntil<T>(
   throw new Error(`Timed out after ${timeoutMs}ms`);
 }
 
-async function clearMailpit(): Promise<void> {
-  const response = await fetch(mailpitUrl, { method: "DELETE" });
-  if (!response.ok) {
-    throw new Error(`Mailpit clear failed with ${response.status}`);
-  }
-}
-
 async function findMailpitMessage(subject: string): Promise<MailpitMessage | null> {
   const response = await fetch(mailpitUrl);
   if (!response.ok) {
@@ -56,10 +49,6 @@ async function findMailpitMessage(subject: string): Promise<MailpitMessage | nul
 describe("listing expiry worker integration", () => {
   const stops: StopTask[] = [];
   const insertedListingIds: string[] = [];
-
-  beforeEach(async () => {
-    await clearMailpit();
-  });
 
   afterEach(async () => {
     await Promise.all(stops.splice(0).map((stop) => stop()));

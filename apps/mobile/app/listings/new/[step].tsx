@@ -28,6 +28,7 @@ import {
   listingWizardReducer,
   missingFieldsForDraft,
   movePhoto,
+  needsAgentMandateStep,
   type ListingDraft,
   type WizardPhoto
 } from "../../../lib/listing-wizard";
@@ -131,6 +132,13 @@ export default function ListingWizardScreen() {
       setStep(totalSteps);
     }
   }, [step, totalSteps]);
+
+  useEffect(() => {
+    if (needsAgentMandateStep(draft, isAgentNewListing, step)) {
+      setStep(1);
+      router.replace("/listings/new/1" as Href);
+    }
+  }, [draft, isAgentNewListing, router, step]);
 
   useEffect(() => {
     if (!listingId || !token) {

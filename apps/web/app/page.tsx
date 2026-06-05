@@ -2,7 +2,7 @@ import type { ListingSummary } from "../../../packages/shared/src/types";
 import { bedroomsForFlatType, formatSGD } from "../lib/format";
 import { serverApiClient } from "../lib/api-client";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 function ListingCard({ listing }: { listing: ListingSummary }) {
   const [photo] = listing.photos;
@@ -55,7 +55,9 @@ function ListingCard({ listing }: { listing: ListingSummary }) {
 }
 
 export default async function Home() {
-  const { items } = await serverApiClient().listings.list({ limit: 20 });
+  const { items } = await serverApiClient({ cache: "force-cache" }).listings.list({
+    limit: 20
+  });
 
   return (
     <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-8 px-6 py-12">

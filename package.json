@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n web,mobile \"npm run dev -w apps/web -- -p 3100\" \"npm run web -w apps/mobile -- --port 3101\"",
+    "dev": "concurrently -n web,mobile --kill-others --kill-signal SIGTERM --kill-timeout 5000 \"npm run dev -w apps/web -- -p 3100\" \"npm run web -w apps/mobile -- --port 3101\"",
     "build": "NODE_OPTIONS=--no-deprecation npm run build --workspaces --if-present",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -16,7 +16,7 @@
     "db:migrate": "npm run db:migrate -w packages/db",
     "db:seed": "npm run db:seed -w packages/db",
     "db:reset": "npm run db:reset -w packages/db",
-    "worker:start": "npm run start -w apps/worker"
+    "worker:start": "exec node --import tsx apps/worker/src/index.ts"
   },
   "devDependencies": {
     "@types/node": "25.0.0",
